@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScreenHelp AI - Screen Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.8); border-radius: 9999px; }
+    .crop-canvas-active { cursor: crosshair; }
+    .draw-canvas-active { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='%23f43f5e' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M0 0l6.5 18 3.5-7 7-3.5L0 0z'/%3E%3C/svg%3E") 0 0, crosshair; }
+    
+    /* Feature 5: Animated Click Target Annotations */
+    .click-target-ring {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      border: 3px solid #f43f5e;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+      pointer-events: none;
+    }
+    .click-target-dot {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background-color: #f43f5e;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 12px rgba(244, 63, 94, 0.9);
+      pointer-events: none;
+      z-index: 30;
+    }
+    @keyframes pulse-ring {
+      0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans overflow-hidden bg-slate-950 text-slate-100 select-none">
+
+  <!-- Top Navigation Header -->
+  <header class="h-14 border-b border-slate-800 bg-slate-900/90 backdrop-blur px-4 flex items-center justify-between z-30 shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 via-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+        <i class="fa-solid fa-display text-white text-sm"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-sm text-white tracking-tight">ScreenHelp <span class="text-xs font-normal text-indigo-400">AI</span></h1>
+          <span id="modelBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono">gemini-3.8-flash</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="flex items-center gap-2">
+      <!-- Status Badge -->
+      <div id="statusBadge" class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 text-[11px] text-slate-300 border border-slate-700">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span id="statusText">Ready</span>
+      </div>
+
+      <!-- Config API Key Button -->
+      <button onclick="toggleModal(true)" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition flex items-center gap-1.5">
+        <i class="fa-solid fa-key text-amber-400"></i>
+        <span id="apiKeyBtnText">Set API Key</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Split Layout -->
+  <div class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+
+    <!-- LEFT PANEL: Screen Viewport & Interactive Tools -->
+    <section class="flex-1 flex flex-col min-w-0 bg-slate-950 relative border-r border-slate-800/80">
+      
+      <!-- Viewport Action Toolbar -->
+      <div class="p-2 border-b border-slate-800 bg-slate-900/60 backdrop-blur flex flex-wrap items-center justify-between gap-2 z-20">
+        
+        <!-- Capture Source Controls -->
+        <div class="flex items-center gap-1.5">
+          <button onclick="startScreenCapture()" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition shadow-sm flex items-center gap-1.5">
+            <i class="fa-solid fa-desktop"></i>
+            <span>Share Screen</span>
+          </button>
+
+          <label class="cursor-pointer px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition flex items-center gap-1.5">
+            <i class="fa-solid fa-upload text-indigo-400"></i>
+            <span>Upload</span>
+            <input type="file" accept="image/*" class="hidden" onchange="handleFileUpload(event)">
+          </label>
+
+          <button onclick="useSampleScreen()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition">
+            <i class="fa-solid fa-flask text-emerald-400"></i>
+            <span class="hidden lg:inline">Sample Screen</span>
+          </button>
+        </div>
+
+        <!-- Interactive AI Tools -->
+        <div class="flex items-center gap-1.5">
+          <!-- Feature 1: Draw Tool Toggle Button -->
+          <button id="drawToolBtn" onclick="toggleDrawMode()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition flex items-center gap-1.5" title="Draw on Screen">
+            <i class="fa-solid fa-pen text-rose-400"></i>
+            <span>Draw</span>
+          </button>
+
+          <button id="cropToolBtn" onclick="toggleCropMode()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition flex items-center gap-1.5">
+            <i class="fa-solid fa-crop-simple text-blue-400"></i>
+            <span>Crop Area</span>
+          </button>
+
+          <button id="resetCropBtn" onclick="resetCrop()" class="hidden px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-medium transition flex items-center gap-1.5" title="Reset to original full image">
+            <i class="fa-solid fa-arrow-rotate-left"></i>
+            <span>Reset Crop</span>
+          </button>
+
+          <button id="autoMonitorBtn" onclick="toggleAutoMonitor()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition flex items-center gap-1.5">
+            <i class="fa-solid fa-eye text-amber-400"></i>
+            <span class="hidden sm:inline">Auto Monitor</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Feature 1: Drawing Control Sub-Bar -->
+      <div id="drawToolbar" class="hidden p-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-20 text-xs">
+        <div class="flex items-center gap-3">
+          <span class="text-slate-400 font-medium">Draw Tools:</span>
+          <button onclick="setDrawTool('pen')" id="toolPen" class="px-2.5 py-1 rounded bg-indigo-600 text-white flex items-center gap-1"><i class="fa-solid fa-pen"></i> Pen</button>
+          <button onclick="setDrawTool('highlighter')" id="toolHighlighter" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center gap-1"><i class="fa-solid fa-highlighter text-yellow-400"></i> Highlighter</button>
+          
+          <div class="flex items-center gap-1.5 ml-2">
+            <span class="text-slate-400">Color:</span>
+            <input type="color" id="drawColor" value="#f43f5e" onchange="updateDrawColor()" class="w-6 h-6 rounded cursor-pointer border-0 bg-transparent">
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="clearDrawCanvas()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-rose-400 flex items-center gap-1"><i class="fa-solid fa-eraser"></i> Clear Canvas</button>
+          <button onclick="toggleDrawMode(false)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">Done</button>
+        </div>
+      </div>
+
+      <!-- Screen Display Canvas Container -->
+      <div id="viewportContainer" class="flex-1 relative bg-slate-950 flex items-center justify-center p-2 overflow-hidden select-none">
+        
+        <!-- Live Video Element -->
+        <video id="screenVideo" autoplay playsinline class="hidden max-w-full max-h-full rounded-lg object-contain shadow-2xl border border-slate-800"></video>
+        
+        <!-- Image Display -->
+        <img id="screenImage" class="hidden max-w-full max-h-full rounded-lg object-contain shadow-2xl border border-slate-800" src="" alt="Screen Capture">
+
+        <!-- Default Drag/Paste Prompt Overlay -->
+        <div id="emptyViewportPrompt" class="text-center p-6 rounded-2xl border-2 border-dashed border-slate-800 bg-slate-900/40 max-w-sm">
+          <div class="w-12 h-12 rounded-xl bg-slate-800 text-indigo-400 flex items-center justify-center mx-auto mb-3 text-xl">
+            <i class="fa-solid fa-desktop"></i>
+          </div>
+          <h3 class="font-semibold text-slate-200 text-sm mb-1">No Active Screen Stream</h3>
+          <p class="text-slate-400 text-xs mb-4">Click <strong>Share Screen</strong>, upload an image file, or press <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-[10px]">Ctrl + V</kbd> to paste a screenshot.</p>
+          <button onclick="useSampleScreen()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs rounded-lg transition font-medium">
+            Load Demo Screenshot
+          </button>
+        </div>
+
+        <!-- Feature 1: Drawing Annotations Overlay Canvas -->
+        <canvas id="drawCanvas" class="absolute inset-0 pointer-events-none hidden z-20"></canvas>
+
+        <!-- Crop Overlay Canvas -->
+        <canvas id="cropCanvas" class="absolute inset-0 pointer-events-none hidden z-20"></canvas>
+
+        <!-- Feature 5: Dynamic Bounding Boxes & Animated Click Target Overlay -->
+        <div id="boundingBoxOverlay" class="absolute inset-0 pointer-events-none z-10"></div>
+      </div>
+
+      <!-- Viewport Footer Info Bar -->
+      <div class="px-3 py-2 bg-slate-900/90 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between shrink-0">
+        <span id="captureSourceInfo">Source: Disconnected</span>
+        <span id="drawStatusText" class="text-rose-400 hidden font-mono">Drawing Mode Active</span>
+        <span id="cropStatusText" class="text-indigo-400 hidden font-mono">Crop Selection Active</span>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: AI Chat Assistant & Continuous Voice -->
+    <section class="w-full md:w-[400px] lg:w-[440px] flex flex-col bg-slate-900 border-l border-slate-800 shrink-0">
+      
+      <!-- Panel Header & Voice Controls -->
+      <div class="p-3 border-b border-slate-800 bg-slate-900/90 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>
+          <span class="font-semibold text-xs text-slate-200">AI Screen Assistant</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Text-To-Speech Toggle -->
+          <button id="ttsToggleBtn" onclick="toggleTTS()" class="p-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs transition" title="Toggle Voice Readout (Text-To-Speech)">
+            <i class="fa-solid fa-volume-high"></i>
+          </button>
+
+          <!-- Continuous Voice Mic Button -->
+          <button id="continuousMicBtn" onclick="toggleContinuousVoice()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition flex items-center gap-1.5">
+            <i class="fa-solid fa-microphone text-rose-400"></i>
+            <span id="continuousMicText">Continuous Voice</span>
+          </button>
+
+          <button onclick="clearChatHistory()" class="p-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-xs transition" title="Clear Conversation">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Action Prompt Chips Bar -->
+      <div class="p-2 border-b border-slate-800/80 bg-slate-950/40 flex items-center gap-1.5 shrink-0 overflow-x-auto no-scrollbar">
+        <button onclick="sendQuickPrompt('Do you like this design? Give me your opinion.')" class="shrink-0 px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-indigo-300 text-[11px] border border-slate-700/80 transition">
+          💡 Do you like this design?
+        </button>
+        <button onclick="sendQuickPrompt('Explain what is on this screen in simple terms.')" class="shrink-0 px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700/80 transition">
+          📄 Summarize Screen
+        </button>
+        <button onclick="sendQuickPrompt('Where should I click to proceed? Highlight the target element.')" class="shrink-0 px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700/80 transition">
+          🎯 Where to click?
+        </button>
+        <button onclick="sendQuickPrompt('Spot any bugs, layout issues or errors on this screen.')" class="shrink-0 px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700/80 transition">
+          🐞 Find Errors
+        </button>
+      </div>
+
+      <!-- Conversation Chat Messages Stream -->
+      <div id="chatMessages" class="flex-1 p-3 overflow-y-auto space-y-3 font-sans text-xs">
+        <div class="flex items-start gap-2.5">
+          <div class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow">
+            AI
+          </div>
+          <div class="bg-slate-800 border border-slate-700/80 text-slate-200 rounded-2xl rounded-tl-none p-3 leading-relaxed shadow-sm">
+            Hello! I'm your screen assistant. Share your screen or upload a photo, draw annotations or crop a region, and ask me anything!
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Prompt Form -->
+      <form onsubmit="handlePromptSubmit(event)" class="p-2 border-t border-slate-800 bg-slate-900/90 shrink-0">
+        <div class="relative flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 focus-within:border-indigo-500 transition">
+          <textarea id="userPromptInput" rows="1" placeholder="Ask Gemini about your screen..." class="w-full bg-transparent text-slate-200 text-xs px-2 py-1.5 focus:outline-none resize-none max-h-20" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); handlePromptSubmit(); }"></textarea>
+
+          <div class="flex items-center gap-1 pr-1">
+            <button type="button" onclick="toggleSingleVoiceInput()" class="p-2 text-slate-400 hover:text-rose-400 transition" title="Voice Input">
+              <i id="singleMicIcon" class="fa-solid fa-microphone"></i>
+            </button>
+            <button type="submit" class="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition shadow">
+              <i class="fa-solid fa-paper-plane text-xs"></i>
+            </button>
+          </div>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <!-- API Key Modal -->
+  <div id="apiKeyModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-key text-amber-400"></i>
+          <h3 class="font-bold text-slate-100 text-sm">Set Gemini API Key</h3>
+        </div>
+        <button onclick="toggleModal(false)" class="text-slate-400 hover:text-slate-200"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <p class="text-slate-400 text-xs mb-4 leading-relaxed">
+        Your API key is saved locally in your browser. Get your free key at <a href="https://aistudio.google.com/" target="_blank" class="text-indigo-400 underline">aistudio.google.com</a>.
+      </p>
+
+      <div class="space-y-4 mb-6">
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">API Key</label>
+          <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2">
+        <button onclick="toggleModal(false)" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium">Cancel</button>
+        <button onclick="saveApiKey()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-md shadow-indigo-600/20">Save Key</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Configuration & State
+    let apiKey = localStorage.getItem('GEMINI_API_KEY') || '';
+    let screenStream = null;
+    let conversationHistory = [];
+    let isTTSActive = true;
+    let isContinuousVoice = false;
+    let autoMonitorInterval = null;
+    let isCropMode = false;
+    let fullSourceImage = null; // Stores original image data for reset
+    let speechRecognition = null;
+
+    // Feature 1: Drawing Tool State
+    let isDrawMode = false;
+    let currentDrawTool = 'pen';
+    let currentDrawColor = '#f43f5e';
+    let isDrawing = false;
+    let drawCtx = null;
+
+    // Free Tier Models in Priority Fallback Order
+    const MODEL_FALLBACK_CHAIN = [
+      'gemini-3.8-flash',
+      'gemini-3.5-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-3.1-flash-lite'
+    ];
+
+    // System instruction defining personality and behavior
+    const SYSTEM_INSTRUCTION = `You are ScreenHelp AI, an intelligent visual screen assistant with a natural, engaging personality.
+    - If the user asks for your opinion, preference, or whether you like/dislike something on their screen (e.g., "Do you like this design?", "What do you think of this layout?"), give a definitive, clear 'Yes' or 'No' along with a brief, friendly explanation based on what you observe on screen.
+    - If the user asks where to click, identify the specific element and specify its exact location or normalized pixel coordinates [ymin, xmin, ymax, xmax].
+    - Be clear, direct, concise, and helpful when analyzing UI elements, code errors, or workflows.`;
+
+    window.onload = () => {
+      updateApiKeyUI();
+      setupPasteAndDrop();
+      setupCropCanvas();
+      setupDrawCanvas();
+      setupSpeechRecognition();
+      window.addEventListener('resize', resizeDrawCanvas);
+    };
+
+    function updateApiKeyUI() {
+      const btnText = document.getElementById('apiKeyBtnText');
+      btnText.textContent = apiKey ? 'Key Configured' : 'Set API Key';
+    }
+
+    function toggleModal(show) {
+      document.getElementById('apiKeyModal').classList.toggle('hidden', !show);
+      if (show) document.getElementById('apiKeyInput').value = apiKey;
+    }
+
+    function saveApiKey() {
+      apiKey = document.getElementById('apiKeyInput').value.trim();
+      localStorage.setItem('GEMINI_API_KEY', apiKey);
+      updateApiKeyUI();
+      toggleModal(false);
+      addAssistantMessage('API Key saved successfully!');
+    }
+
+    // Helper to calculate exact rendered dimensions of image/video inside viewport container
+    function getDisplayedImageRect() {
+      const video = document.getElementById('screenVideo');
+      const img = document.getElementById('screenImage');
+      const container = document.getElementById('viewportContainer');
+
+      let naturalWidth = 0, naturalHeight = 0;
+
+      if (!video.classList.contains('hidden') && video.readyState >= 2) {
+        naturalWidth = video.videoWidth;
+        naturalHeight = video.videoHeight;
+      } else if (!img.classList.contains('hidden') && img.complete) {
+        naturalWidth = img.naturalWidth;
+        naturalHeight = img.naturalHeight;
+      }
+
+      const containerRect = container.getBoundingClientRect();
+      if (naturalWidth === 0 || naturalHeight === 0) {
+        return {
+          left: 0,
+          top: 0,
+          width: containerRect.width,
+          height: containerRect.height,
+          containerWidth: containerRect.width,
+          containerHeight: containerRect.height
+        };
+      }
+
+      const containerAspect = containerRect.width / containerRect.height;
+      const imageAspect = naturalWidth / naturalHeight;
+
+      let renderWidth, renderHeight;
+      if (imageAspect > containerAspect) {
+        renderWidth = containerRect.width;
+        renderHeight = containerRect.width / imageAspect;
+      } else {
+        renderHeight = containerRect.height;
+        renderWidth = containerRect.height * imageAspect;
+      }
+
+      const renderLeft = (containerRect.width - renderWidth) / 2;
+      const renderTop = (containerRect.height - renderHeight) / 2;
+
+      return {
+        left: renderLeft,
+        top: renderTop,
+        width: renderWidth,
+        height: renderHeight,
+        containerWidth: containerRect.width,
+        containerHeight: containerRect.height
+      };
+    }
+
+    function setupDrawCanvas() {
+      const canvas = document.getElementById('drawCanvas');
+      drawCtx = canvas.getContext('2d');
+      let lastX = 0, lastY = 0;
+
+      function getPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top
+        };
+      }
+
+      function startDraw(e) {
+        if (!isDrawMode) return;
+        if (e.type === 'touchstart') e.preventDefault();
+        isDrawing = true;
+        const pos = getPos(e);
+        lastX = pos.x;
+        lastY = pos.y;
+      }
+
+      function moveDraw(e) {
+        if (!isDrawing || !isDrawMode) return;
+        if (e.type === 'touchmove') e.preventDefault();
+        const pos = getPos(e);
+
+        drawCtx.beginPath();
+        drawCtx.moveTo(lastX, lastY);
+        drawCtx.lineTo(pos.x, pos.y);
+
+        if (currentDrawTool === 'highlighter') {
+          // Convert active color to ultra-translucent RGBA (0.15 alpha) for crystal-clear see-through highlights
+          let hex = currentDrawColor.replace('#', '');
+          if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+          const r = parseInt(hex.substring(0, 2), 16) || 250;
+          const g = parseInt(hex.substring(2, 4), 16) || 204;
+          const b = parseInt(hex.substring(4, 6), 16) || 21;
+          
+          drawCtx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.15)`;
+          drawCtx.lineWidth = 24;
+          drawCtx.lineCap = 'square';
+          drawCtx.lineJoin = 'miter';
+        } else {
+          drawCtx.strokeStyle = currentDrawColor;
+          drawCtx.lineWidth = 4;
+          drawCtx.lineCap = 'round';
+          drawCtx.lineJoin = 'round';
+        }
+
+        drawCtx.stroke();
+        lastX = pos.x;
+        lastY = pos.y;
+      }
+
+      function stopDraw() {
+        isDrawing = false;
+      }
+
+      canvas.addEventListener('mousedown', startDraw);
+      canvas.addEventListener('mousemove', moveDraw);
+      canvas.addEventListener('mouseup', stopDraw);
+      canvas.addEventListener('mouseleave', stopDraw);
+
+      canvas.addEventListener('touchstart', startDraw, { passive: false });
+      canvas.addEventListener('touchmove', moveDraw, { passive: false });
+      canvas.addEventListener('touchend', stopDraw);
+    }
+
+    function toggleDrawMode(forceState) {
+      isDrawMode = forceState !== undefined ? forceState : !isDrawMode;
+      const canvas = document.getElementById('drawCanvas');
+      const toolbar = document.getElementById('drawToolbar');
+      const status = document.getElementById('drawStatusText');
+      const btn = document.getElementById('drawToolBtn');
+
+      if (isDrawMode) {
+        if (isCropMode) toggleCropMode(false);
+        canvas.classList.remove('hidden');
+        canvas.style.pointerEvents = 'auto';
+        canvas.classList.add('draw-canvas-active');
+        toolbar.classList.remove('hidden');
+        status.classList.remove('hidden');
+        btn.classList.add('bg-rose-600', 'text-white');
+        resizeDrawCanvas();
+      } else {
+        canvas.classList.add('hidden');
+        canvas.style.pointerEvents = 'none';
+        toolbar.classList.add('hidden');
+        status.classList.add('hidden');
+        btn.classList.remove('bg-rose-600', 'text-white');
+      }
+    }
+
+    function resizeDrawCanvas() {
+      const canvas = document.getElementById('drawCanvas');
+      const container = document.getElementById('viewportContainer');
+      if (!canvas || !container) return;
+
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      if (canvas.width > 0 && canvas.height > 0) {
+        tempCanvas.getContext('2d').drawImage(canvas, 0, 0);
+      }
+
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+
+      if (drawCtx && tempCanvas.width > 0) {
+        drawCtx.drawImage(tempCanvas, 0, 0);
+      }
+    }
+
+    function setDrawTool(tool) {
+      currentDrawTool = tool;
+      document.getElementById('toolPen').className = tool === 'pen' ? 'px-2.5 py-1 rounded bg-indigo-600 text-white flex items-center gap-1' : 'px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center gap-1';
+      document.getElementById('toolHighlighter').className = tool === 'highlighter' ? 'px-2.5 py-1 rounded bg-yellow-600 text-white flex items-center gap-1' : 'px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center gap-1';
+    }
+
+    function updateDrawColor() {
+      currentDrawColor = document.getElementById('drawColor').value;
+    }
+
+    function clearDrawCanvas() {
+      const canvas = document.getElementById('drawCanvas');
+      if (drawCtx) drawCtx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    async function startScreenCapture() {
+      try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: "always" },
+          audio: false
+        });
+
+        const video = document.getElementById('screenVideo');
+        video.srcObject = screenStream;
+        video.classList.remove('hidden');
+        document.getElementById('screenImage').classList.add('hidden');
+        document.getElementById('emptyViewportPrompt').classList.add('hidden');
+
+        document.getElementById('captureSourceInfo').textContent = 'Source: Live Screen Stream';
+        document.getElementById('statusText').textContent = 'Live Capturing';
+        clearBoundingBoxes();
+
+        screenStream.getVideoTracks()[0].onended = () => stopScreenCapture();
+      } catch (err) {
+        console.warn('Screen capture cancelled or error:', err);
+      }
+    }
+
+    function stopScreenCapture() {
+      if (screenStream) {
+        screenStream.getTracks().forEach(track => track.stop());
+        screenStream = null;
+      }
+      document.getElementById('screenVideo').classList.add('hidden');
+      document.getElementById('captureSourceInfo').textContent = 'Source: Disconnected';
+      document.getElementById('statusText').textContent = 'Ready';
+    }
+
+    function handleFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => displayCapturedImage(event.target.result, file.name);
+      reader.readAsDataURL(file);
+    }
+
+    function useSampleScreen() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1280;
+      canvas.height = 720;
+      const ctx = canvas.getContext('2d');
+
+      // Draw sample dashboard screenshot
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, 1280, 720);
+
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(40, 40, 1200, 80);
+      ctx.fillStyle = '#6366f1';
+      ctx.fillRect(60, 60, 160, 40);
+
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(40, 150, 360, 520);
+      ctx.fillRect(430, 150, 810, 520);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(460, 190, 750, 200);
+
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '24px sans-serif';
+      ctx.fillText('Sample Analytics Dashboard - Click "Where to Click?" or "Detect UI"', 480, 240);
+
+      displayCapturedImage(canvas.toDataURL('image/png'), 'Sample Screen');
+    }
+
+    function displayCapturedImage(dataUrl, sourceName) {
+      stopScreenCapture();
+      const img = document.getElementById('screenImage');
+      img.src = dataUrl;
+      img.classList.remove('hidden');
+      document.getElementById('screenVideo').classList.add('hidden');
+      document.getElementById('emptyViewportPrompt').classList.add('hidden');
+
+      document.getElementById('captureSourceInfo').textContent = `Source: ${sourceName}`;
+      document.getElementById('statusText').textContent = 'Image Ready';
+      clearBoundingBoxes();
+      clearDrawCanvas();
+    }
+
+    function setupPasteAndDrop() {
+      window.addEventListener('paste', (e) => {
+        const items = e.clipboardData.items;
+        for (let item of items) {
+          if (item.type.indexOf('image') !== -1) {
+            const blob = item.getAsFile();
+            const reader = new FileReader();
+            reader.onload = (event) => displayCapturedImage(event.target.result, 'Pasted Screenshot');
+            reader.readAsDataURL(blob);
+          }
+        }
+      });
+    }
+
+    function setupCropCanvas() {
+      const canvas = document.getElementById('cropCanvas');
+      const ctx = canvas.getContext('2d');
+      let startX = 0, startY = 0, isSelecting = false;
+
+      function getPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top
+        };
+      }
+
+      function startSelect(e) {
+        if (!isCropMode) return;
+        if (e.type === 'touchstart') e.preventDefault();
+        isSelecting = true;
+        const pos = getPos(e);
+        startX = pos.x;
+        startY = pos.y;
+      }
+
+      function moveSelect(e) {
+        if (!isSelecting || !isCropMode) return;
+        if (e.type === 'touchmove') e.preventDefault();
+        const pos = getPos(e);
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const x = Math.min(startX, pos.x);
+        const y = Math.min(startY, pos.y);
+        const w = Math.abs(pos.x - startX);
+        const h = Math.abs(pos.y - startY);
+
+        ctx.clearRect(x, y, w, h);
+        ctx.strokeStyle = '#6366f1';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 3]);
+        ctx.strokeRect(x, y, w, h);
+        ctx.setLineDash([]);
+      }
+
+      async function endSelect(e) {
+        if (!isSelecting || !isCropMode) return;
+        isSelecting = false;
+        
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+        if (e.changedTouches && e.changedTouches.length > 0) {
+          clientX = e.changedTouches[0].clientX;
+          clientY = e.changedTouches[0].clientY;
+        }
+
+        const rect = canvas.getBoundingClientRect();
+        const endX = clientX - rect.left;
+        const endY = clientY - rect.top;
+
+        const selX = Math.min(startX, endX);
+        const selY = Math.min(startY, endY);
+        const selW = Math.abs(endX - startX);
+        const selH = Math.abs(endY - startY);
+
+        // Ignore accidental tiny clicks
+        if (selW < 15 || selH < 15) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          toggleCropMode(false);
+          return;
+        }
+
+        // Calculate selected crop region relative to actual displayed image rectangle
+        const imgRect = getDisplayedImageRect();
+        const normalizedX = Math.max(0, (selX - imgRect.left) / imgRect.width);
+        const normalizedY = Math.max(0, (selY - imgRect.top) / imgRect.height);
+        const normalizedW = Math.min(1 - normalizedX, selW / imgRect.width);
+        const normalizedH = Math.min(1 - normalizedY, selH / imgRect.height);
+
+        // Execute the visual crop on current frame
+        await applyCropToImage(normalizedX, normalizedY, normalizedW, normalizedH);
+        toggleCropMode(false);
+      }
+
+      canvas.addEventListener('mousedown', startSelect);
+      canvas.addEventListener('mousemove', moveSelect);
+      canvas.addEventListener('mouseup', endSelect);
+
+      canvas.addEventListener('touchstart', startSelect, { passive: false });
+      canvas.addEventListener('touchmove', moveSelect, { passive: false });
+      canvas.addEventListener('touchend', endSelect);
+    }
+
+    function toggleCropMode(forceState) {
+      isCropMode = forceState !== undefined ? forceState : !isCropMode;
+      const canvas = document.getElementById('cropCanvas');
+      const status = document.getElementById('cropStatusText');
+      const btn = document.getElementById('cropToolBtn');
+
+      if (isCropMode) {
+        if (isDrawMode) toggleDrawMode(false);
+        const container = document.getElementById('viewportContainer');
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+
+        canvas.classList.remove('hidden');
+        canvas.style.pointerEvents = 'auto';
+        canvas.classList.add('crop-canvas-active');
+        status.classList.remove('hidden');
+        btn.classList.add('bg-blue-600', 'text-white');
+      } else {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        canvas.classList.add('hidden');
+        canvas.style.pointerEvents = 'none';
+        canvas.classList.remove('crop-canvas-active');
+        status.classList.add('hidden');
+        btn.classList.remove('bg-blue-600', 'text-white');
+      }
+    }
+
+    async function applyCropToImage(nx, ny, nw, nh) {
+      const video = document.getElementById('screenVideo');
+      const img = document.getElementById('screenImage');
+
+      let sourceWidth = 0, sourceHeight = 0, sourceEl = null;
+
+      if (!video.classList.contains('hidden') && video.readyState >= 2) {
+        sourceWidth = video.videoWidth;
+        sourceHeight = video.videoHeight;
+        sourceEl = video;
+      } else if (!img.classList.contains('hidden') && img.complete) {
+        sourceWidth = img.naturalWidth;
+        sourceHeight = img.naturalHeight;
+        sourceEl = img;
+      } else {
+        return;
+      }
+
+      // Save original full image before applying crop
+      if (!fullSourceImage) {
+        if (sourceEl === img) {
+          fullSourceImage = img.src;
+        } else {
+          const fullCanvas = document.createElement('canvas');
+          fullCanvas.width = sourceWidth;
+          fullCanvas.height = sourceHeight;
+          fullCanvas.getContext('2d').drawImage(video, 0, 0);
+          fullSourceImage = fullCanvas.toDataURL('image/png');
+        }
+      }
+
+      const cropX = Math.round(nx * sourceWidth);
+      const cropY = Math.round(ny * sourceHeight);
+      const cropW = Math.round(nw * sourceWidth);
+      const cropH = Math.round(nh * sourceHeight);
+
+      const croppedCanvas = document.createElement('canvas');
+      croppedCanvas.width = cropW;
+      croppedCanvas.height = cropH;
+      const ctx = croppedCanvas.getContext('2d');
+
+      ctx.drawImage(sourceEl, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+      // Merge drawing canvas if present
+      const drawCanvas = document.getElementById('drawCanvas');
+      if (drawCanvas && !drawCanvas.classList.contains('hidden')) {
+        ctx.drawImage(drawCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+        clearDrawCanvas();
+      }
+
+      const croppedDataUrl = croppedCanvas.toDataURL('image/png');
+      
+      // Update viewport display to cropped image
+      stopScreenCapture();
+      img.src = croppedDataUrl;
+      img.classList.remove('hidden');
+
+      document.getElementById('resetCropBtn').classList.remove('hidden');
+      document.getElementById('captureSourceInfo').textContent = 'Source: Cropped Selection';
+      addAssistantMessage('Screen image cropped successfully! Ask Gemini about this selected area.');
+    }
+
+    function resetCrop() {
+      if (!fullSourceImage) return;
+      displayCapturedImage(fullSourceImage, 'Original Screenshot');
+      fullSourceImage = null;
+      document.getElementById('resetCropBtn').classList.add('hidden');
+      addAssistantMessage('Restored original full screen.');
+    }
+
+    async function captureCurrentFrameBase64() {
+      const video = document.getElementById('screenVideo');
+      const img = document.getElementById('screenImage');
+      const drawCanvas = document.getElementById('drawCanvas');
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      let sourceWidth = 0, sourceHeight = 0;
+
+      if (!video.classList.contains('hidden') && video.readyState >= 2) {
+        sourceWidth = video.videoWidth;
+        sourceHeight = video.videoHeight;
+        canvas.width = sourceWidth;
+        canvas.height = sourceHeight;
+        ctx.drawImage(video, 0, 0, sourceWidth, sourceHeight);
+      } else if (!img.classList.contains('hidden') && img.complete) {
+        sourceWidth = img.naturalWidth;
+        sourceHeight = img.naturalHeight;
+        canvas.width = sourceWidth;
+        canvas.height = sourceHeight;
+        ctx.drawImage(img, 0, 0, sourceWidth, sourceHeight);
+      } else {
+        return null;
+      }
+
+      // Merge active user drawing annotations onto capture canvas
+      if (drawCanvas && !drawCanvas.classList.contains('hidden')) {
+        ctx.drawImage(drawCanvas, 0, 0, sourceWidth, sourceHeight);
+      }
+
+      return canvas.toDataURL('image/png').split(',')[1];
+    }
+
+    async function handlePromptSubmit(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('userPromptInput');
+      const promptText = input.value.trim();
+      if (!promptText) return;
+
+      input.value = '';
+      addUserMessage(promptText);
+      await processPromptWithAI(promptText);
+    }
+
+    function sendQuickPrompt(promptText) {
+      addUserMessage(promptText);
+      processPromptWithAI(promptText);
+    }
+
+    async function processPromptWithAI(promptText) {
+      if (!apiKey) {
+        toggleModal(true);
+        addAssistantMessage('Please enter your Gemini API Key to proceed.');
+        return;
+      }
+
+      const base64Image = await captureCurrentFrameBase64();
+      if (!base64Image) {
+        addAssistantMessage('No screen image available. Please share your screen or upload a screenshot.');
+        return;
+      }
+
+      const loadingId = addLoadingMessage();
+      document.getElementById('statusText').textContent = 'Analyzing...';
+
+      let success = false;
+      let lastError = null;
+
+      for (const modelName of MODEL_FALLBACK_CHAIN) {
+        try {
+          const responseText = await callGeminiApi(modelName, base64Image, promptText);
+          removeMessage(loadingId);
+          addAssistantMessage(responseText);
+          
+          document.getElementById('modelBadge').textContent = modelName;
+          document.getElementById('statusText').textContent = 'Ready';
+          speakText(responseText);
+          
+          // Feature 5: Check if prompt asks where to click and parse coordinates automatically
+          if (promptText.toLowerCase().includes('click') || promptText.toLowerCase().includes('where')) {
+            const coordMatch = responseText.match(/\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\]/);
+            if (coordMatch) {
+              const [_, ymin, xmin, ymax, xmax] = coordMatch.map(Number);
+              const imgRect = getDisplayedImageRect();
+
+              const boxLeft = imgRect.left + (xmin / 1000) * imgRect.width;
+              const boxTop = imgRect.top + (ymin / 1000) * imgRect.height;
+              const boxW = ((xmax - xmin) / 1000) * imgRect.width;
+              const boxH = ((ymax - ymin) / 1000) * imgRect.height;
+
+              const centerXPx = boxLeft + boxW / 2;
+              const centerYPx = boxTop + boxH / 2;
+              const centerPercentX = (centerXPx / imgRect.containerWidth) * 100;
+              const centerPercentY = (centerYPx / imgRect.containerHeight) * 100;
+
+              clearBoundingBoxes();
+              renderClickTarget(centerPercentX, centerPercentY, 'Click Here');
+            }
+          }
+
+          success = true;
+          break;
+        } catch (err) {
+          console.warn(`Model ${modelName} failed:`, err);
+          lastError = err;
+        }
+      }
+
+      if (!success) {
+        removeMessage(loadingId);
+        document.getElementById('statusText').textContent = 'Error';
+        addAssistantMessage(`Gemini API Error: ${lastError ? lastError.message : 'Service unavailable. Please try again later.'}`);
+      }
+    }
+
+    async function callGeminiApi(model, base64Image, userPrompt) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      const contents = [
+        ...conversationHistory,
+        {
+          role: 'user',
+          parts: [
+            { inlineData: { mimeType: 'image/png', data: base64Image } },
+            { text: userPrompt }
+          ]
+        }
+      ];
+
+      const payload = {
+        contents: contents,
+        systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] }
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = data.error ? data.error.message : 'API Request Failed';
+        throw new Error(`(${model}) ${errorMsg}`);
+      }
+
+      const candidate = data.candidates && data.candidates[0];
+      if (!candidate || !candidate.content || !candidate.content.parts) {
+        throw new Error('Invalid response structure from Gemini API.');
+      }
+
+      const replyText = candidate.content.parts.map(p => p.text).join('\n');
+
+      conversationHistory.push({ role: 'user', parts: [{ text: userPrompt }] });
+      conversationHistory.push({ role: 'model', parts: [{ text: replyText }] });
+
+      return replyText;
+    }
+
+    function setupSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return;
+
+      speechRecognition = new SpeechRecognition();
+      speechRecognition.continuous = false;
+      speechRecognition.interimResults = false;
+
+      speechRecognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        document.getElementById('userPromptInput').value = transcript;
+        handlePromptSubmit();
+      };
+
+      speechRecognition.onend = () => {
+        if (isContinuousVoice) {
+          speechRecognition.start();
+        } else {
+          document.getElementById('singleMicIcon').className = 'fa-solid fa-microphone';
+        }
+      };
+    }
+
+    function toggleSingleVoiceInput() {
+      if (!speechRecognition) {
+        addAssistantMessage('Web Speech Recognition is not supported in this browser.');
+        return;
+      }
+      document.getElementById('singleMicIcon').className = 'fa-solid fa-microphone text-rose-500 animate-pulse';
+      speechRecognition.start();
+    }
+
+    function toggleContinuousVoice() {
+      isContinuousVoice = !isContinuousVoice;
+      const btn = document.getElementById('continuousMicBtn');
+      const text = document.getElementById('continuousMicText');
+
+      if (isContinuousVoice) {
+        btn.classList.add('bg-rose-600', 'text-white');
+        text.textContent = 'Voice Listening...';
+        if (speechRecognition) speechRecognition.start();
+        addAssistantMessage('Continuous voice listening enabled. Speak your questions anytime!');
+      } else {
+        btn.classList.remove('bg-rose-600', 'text-white');
+        text.textContent = 'Continuous Voice';
+        if (speechRecognition) speechRecognition.stop();
+      }
+    }
+
+    function toggleTTS() {
+      isTTSActive = !isTTSActive;
+      const btn = document.getElementById('ttsToggleBtn');
+      btn.className = isTTSActive 
+        ? 'p-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs transition'
+        : 'p-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-500 text-xs transition';
+    }
+
+    function speakText(text) {
+      if (!isTTSActive || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const cleanText = text.replace(/[*_#`]/g, '');
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.rate = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function toggleAutoMonitor() {
+      const btn = document.getElementById('autoMonitorBtn');
+      if (autoMonitorInterval) {
+        clearInterval(autoMonitorInterval);
+        autoMonitorInterval = null;
+        btn.classList.remove('bg-amber-600', 'text-white');
+        addAssistantMessage('Auto-monitoring disabled.');
+      } else {
+        autoMonitorInterval = setInterval(() => {
+          sendQuickPrompt('Auto-scan: Check if any new error or critical state appeared on screen.');
+        }, 15000);
+        btn.classList.add('bg-amber-600', 'text-white');
+        addAssistantMessage('Auto-monitoring enabled (Scanning every 15s).');
+      }
+    }
+
+    function addUserMessage(text) {
+      const container = document.getElementById('chatMessages');
+      const msg = document.createElement('div');
+      msg.className = 'flex justify-end';
+      msg.innerHTML = `
+        <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-none px-3.5 py-2.5 text-xs max-w-[85%] shadow-sm leading-relaxed">
+          ${escapeHtml(text)}
+        </div>
+      `;
+      container.appendChild(msg);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function addAssistantMessage(text) {
+      const container = document.getElementById('chatMessages');
+      const msg = document.createElement('div');
+      msg.className = 'flex items-start gap-2.5';
+      msg.innerHTML = `
+        <div class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow">
+          AI
+        </div>
+        <div class="bg-slate-800 border border-slate-700/80 text-slate-200 rounded-2xl rounded-tl-none p-3 text-xs leading-relaxed max-w-[85%] shadow-sm whitespace-pre-line">
+          ${escapeHtml(text)}
+        </div>
+      `;
+      container.appendChild(msg);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function addLoadingMessage() {
+      const container = document.getElementById('chatMessages');
+      const id = 'msg-' + Date.now();
+      const msg = document.createElement('div');
+      msg.id = id;
+      msg.className = 'flex items-start gap-2.5';
+      msg.innerHTML = `
+        <div class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow">
+          AI
+        </div>
+        <div class="bg-slate-800 border border-slate-700/80 text-slate-400 rounded-2xl rounded-tl-none px-4 py-3 text-xs flex items-center gap-2 shadow-sm">
+          <i class="fa-solid fa-spinner animate-spin text-indigo-400"></i>
+          <span>Thinking & Analyzing...</span>
+        </div>
+      `;
+      container.appendChild(msg);
+      container.scrollTop = container.scrollHeight;
+      return id;
+    }
+
+    function removeMessage(id) {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    }
+
+    function clearChatHistory() {
+      conversationHistory = [];
+      clearBoundingBoxes();
+      clearDrawCanvas();
+      document.getElementById('chatMessages').innerHTML = '';
+      addAssistantMessage('Conversation history cleared.');
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+  </script>
+</body>
+</html>
