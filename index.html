@@ -147,6 +147,20 @@
         </div>
       </div>
 
+      <!-- Browser Agent Bar: Gemini drives a real Chromium running on the local server (server.js) -->
+      <div id="agentBar" class="px-2 py-2 border-b border-slate-800 bg-slate-900/80 flex flex-wrap items-center gap-2 text-xs z-20">
+        <div class="flex items-center gap-1.5 font-semibold text-slate-200 shrink-0">
+          <i class="fa-solid fa-robot text-cyan-400"></i>
+          <span>Browser Agent</span>
+        </div>
+        <input id="agentUrlInput" type="text" value="https://www.wikipedia.org/" placeholder="Start URL" class="w-36 sm:w-48 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500">
+        <input id="agentGoalInput" type="text" placeholder="Goal, e.g. find the population of Derby" class="flex-1 min-w-[160px] bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500">
+        <button id="agentOpenBtn" onclick="openBrowser()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-medium transition">Open Browser</button>
+        <button id="agentStartBtn" onclick="startBrowserAgent()" class="px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium transition shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-play"></i> Start Agent</button>
+        <button id="agentStopBtn" onclick="stopBrowserAgent()" class="hidden px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-medium transition shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-stop"></i> Stop</button>
+        <div id="agentStatus" class="w-full text-[11px] text-slate-400 font-mono truncate">Checking browser server…</div>
+      </div>
+
       <!-- Feature 1: Drawing Control Sub-Bar -->
       <div id="drawToolbar" class="hidden p-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-20 text-xs">
         <div class="flex items-center gap-3">
@@ -354,6 +368,7 @@
       setupDrawCanvas();
       setupSpeechRecognition();
       setupExtras();
+      setupBrowserAgent();
       window.addEventListener('resize', resizeDrawCanvas);
     };
 
@@ -569,6 +584,7 @@
         const video = document.getElementById('screenVideo');
         video.srcObject = screenStream;
         video.classList.remove('hidden');
+        setBrowserView(false);
         document.getElementById('screenImage').classList.add('hidden');
         document.getElementById('emptyViewportPrompt').classList.add('hidden');
 
@@ -632,6 +648,7 @@
 
     function displayCapturedImage(dataUrl, sourceName) {
       stopScreenCapture();
+      setBrowserView(false);
       const img = document.getElementById('screenImage');
       img.src = dataUrl;
       img.classList.remove('hidden');
@@ -1308,6 +1325,416 @@
       clearDrawCanvas();
       document.getElementById('chatMessages').innerHTML = '';
       addAssistantMessage('Conversation history cleared.');
+    }
+
+    /* ===================== Browser Agent =====================
+       Gemini controls a real Chromium running on the local Node server (server.js).
+       Loop: browser screenshot -> Gemini picks a function call -> /api/browser/action
+       performs it -> new screenshot is sent back -> repeat until Gemini calls finish().
+       The Gemini key stays in this page; the server only receives browser actions. */
+    const BROWSER_API = '/api/browser';
+    const AGENT_MAX_STEPS = 25;
+    const AGENT_CALL_TIMEOUT_MS = 60000;
+    let agentRun = null;          // { abort, steps, stopped } while the agent is running
+    let agentServerOnline = false;
+    let viewingBrowser = false;   // true while the viewport shows a browser frame
+
+    // Function declarations Gemini may call. Names must match the server's performAction().
+    const BROWSER_TOOLS = [
+      { name: 'navigate', description: 'Open a web address in the browser (http or https).',
+        parameters: { type: 'OBJECT', properties: { url: { type: 'STRING', description: 'Full URL, e.g. https://example.com' } }, required: ['url'] } },
+      { name: 'click_at', description: 'Click a point on the page. Coordinates are normalized 0-1000: x runs from left (0) to right (1000), y from top (0) to bottom (1000).',
+        parameters: { type: 'OBJECT', properties: {
+          x: { type: 'INTEGER', description: 'Horizontal position, 0-1000' },
+          y: { type: 'INTEGER', description: 'Vertical position, 0-1000' },
+          button: { type: 'STRING', enum: ['left', 'right', 'middle'] },
+          double: { type: 'BOOLEAN', description: 'true for a double-click' } }, required: ['x', 'y'] } },
+      { name: 'type_text', description: 'Type text into a field. If x and y are given, the field is clicked first to focus it.',
+        parameters: { type: 'OBJECT', properties: {
+          text: { type: 'STRING' },
+          x: { type: 'INTEGER', description: 'Field position x, 0-1000' },
+          y: { type: 'INTEGER', description: 'Field position y, 0-1000' },
+          clear: { type: 'BOOLEAN', description: 'Replace any existing text in the field' },
+          submit: { type: 'BOOLEAN', description: 'Press Enter after typing' } }, required: ['text'] } },
+      { name: 'key_press', description: 'Press a key or keyboard shortcut, e.g. "Enter", "Escape", "Tab", "PageDown", "Control+a".',
+        parameters: { type: 'OBJECT', properties: { keys: { type: 'STRING' } }, required: ['keys'] } },
+      { name: 'scroll', description: 'Scroll the page up, down, left or right.',
+        parameters: { type: 'OBJECT', properties: {
+          direction: { type: 'STRING', enum: ['up', 'down', 'left', 'right'] },
+          amount: { type: 'INTEGER', description: 'Pixels to scroll, default 600' } }, required: ['direction'] } },
+      { name: 'go_back', description: 'Go back to the previous page in the browser history.' },
+      { name: 'wait', description: 'Wait for the page to finish loading or animating.',
+        parameters: { type: 'OBJECT', properties: { seconds: { type: 'NUMBER', description: 'Between 0.5 and 5' } }, required: ['seconds'] } },
+      { name: 'finish', description: 'Call this when the goal is complete, or when it cannot be completed. Put the answer or the reason in summary.',
+        parameters: { type: 'OBJECT', properties: {
+          summary: { type: 'STRING', description: 'Short answer or result for the user' },
+          success: { type: 'BOOLEAN', description: 'false if the goal could not be achieved' } }, required: ['summary', 'success'] } },
+    ];
+
+    const BROWSER_AGENT_INSTRUCTION = `You are the ScreenHelp browser agent. You operate a real web browser by calling the provided functions. Every turn you receive a screenshot of the current page.
+    - Work step by step: study the screenshot, choose the single next action, then check the new screenshot.
+    - Coordinates are normalized to 0-1000 on both axes, measured from the top-left corner of the screenshot.
+    - Click the center of the element you want. To type into a search box or form field, use type_text with the field's x and y (and submit=true to press Enter).
+    - Close cookie banners or pop-ups that block the goal. Prefer visible links and buttons over guessing URLs.
+    - Never enter passwords, payment details or personal data unless the user gave them in the goal. Never buy, send, delete or publish anything unless the goal explicitly asks for it.
+    - If you hit a login wall, a CAPTCHA, or something you cannot do, call finish with success=false and explain why.
+    - When the goal is achieved, call finish with success=true and a short summary containing the answer the user asked for.
+    - Keep any text you write very short. Always respond with a function call.`;
+
+    async function browserApi(route, body, signal) {
+      const init = body === undefined
+        ? { method: 'GET', signal }
+        : { method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+      let res;
+      try {
+        res = await fetch(BROWSER_API + route, init);
+      } catch (e) {
+        if (e.name === 'AbortError') throw e;
+        throw new Error('Browser server not reachable. Run "npm start" in the project folder and open http://localhost:3000.');
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Browser server error (${res.status})`);
+      return data;
+    }
+
+    function setAgentStatus(text) {
+      document.getElementById('agentStatus').textContent = text;
+    }
+
+    function updateAgentButtons() {
+      const running = !!agentRun;
+      document.getElementById('agentStartBtn').classList.toggle('hidden', running);
+      document.getElementById('agentStopBtn').classList.toggle('hidden', !running);
+      document.getElementById('agentOpenBtn').disabled = running;
+    }
+
+    function setBrowserView(on) {
+      viewingBrowser = on;
+      document.getElementById('screenImage').classList.toggle('cursor-pointer', on);
+    }
+
+    // Show a browser screenshot in the viewport (reuses the existing image element,
+    // so drawing, cropping and "ask about this screen" all work on the browser view).
+    async function applyBrowserState(st) {
+      if (!st || !st.running || !st.screenshot) return;
+      const img = document.getElementById('screenImage');
+      img.src = 'data:image/jpeg;base64,' + st.screenshot;
+      img.classList.remove('hidden');
+      document.getElementById('screenVideo').classList.add('hidden');
+      document.getElementById('emptyViewportPrompt').classList.add('hidden');
+      document.getElementById('captureSourceInfo').textContent = `Source: Browser · ${st.title || st.url || ''}`.trim();
+      clearBoundingBoxes();
+      setBrowserView(true);
+      await img.decode().catch(() => {});
+    }
+
+    function pointBox(x, y, r = 22) {
+      const c = v => Math.max(0, Math.min(1000, v));
+      return { xmin: c(x - r), ymin: c(y - r), xmax: c(x + r), ymax: c(y + r) };
+    }
+
+    function markAction(args, label) {
+      if (!args || args.x === undefined || args.x === null || args.y === undefined || args.y === null) return;
+      renderClickTarget(pointBox(Number(args.x), Number(args.y)), label);
+    }
+
+    function describeCall({ name, args }) {
+      args = args || {};
+      switch (name) {
+        case 'navigate': return `navigate → ${args.url}`;
+        case 'click_at': return `${args.double ? 'double-click' : 'click'} (${args.x}, ${args.y})`;
+        case 'type_text': return `type "${args.text}"${args.x != null ? ` in field (${args.x}, ${args.y})` : ''}${args.submit ? ' + Enter' : ''}`;
+        case 'key_press': return `press ${args.keys}`;
+        case 'scroll': return `scroll ${args.direction}`;
+        case 'go_back': return 'go back';
+        case 'wait': return `wait ${args.seconds}s`;
+        case 'finish': return 'finish';
+        default: return name;
+      }
+    }
+
+    function addAgentLog(text) {
+      const container = document.getElementById('chatMessages');
+      const row = document.createElement('div');
+      row.className = 'pl-9';
+      row.innerHTML = `<div class="font-mono text-[11px] text-cyan-300/90 bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1 break-words">${escapeHtml(text)}</div>`;
+      container.appendChild(row);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    async function checkBrowserServer() {
+      try {
+        const st = await browserApi('/state');
+        agentServerOnline = true;
+        if (st.running) {
+          await applyBrowserState(st);
+          setAgentStatus(`Browser open · ${st.title || st.url}`);
+        } else {
+          setAgentStatus('Browser server ready · click Open Browser or Start Agent');
+        }
+      } catch (e) {
+        agentServerOnline = false;
+        setAgentStatus(location.protocol === 'file:'
+          ? 'Browser agent needs the local server: run "npm start", then open http://localhost:3000'
+          : 'Browser server offline: run "npm start" to enable the browser agent');
+      }
+    }
+
+    async function openBrowser() {
+      const url = document.getElementById('agentUrlInput').value.trim();
+      setAgentStatus('Launching browser…');
+      try {
+        const st = await browserApi('/open', url ? { url } : {});
+        agentServerOnline = true;
+        await applyBrowserState(st);
+        setAgentStatus(`Browser open · ${st.title || st.url}`);
+      } catch (err) {
+        setAgentStatus('Browser unavailable');
+        addAssistantMessage(`Could not open the browser: ${err.message}`);
+      }
+    }
+
+    // Clicking the browser view takes over manually (e.g. to dismiss a login prompt).
+    async function onBrowserViewClick(e) {
+      if (!viewingBrowser || agentRun || isDrawMode || isCropMode) return;
+      const r = e.currentTarget.getBoundingClientRect();
+      const x = Math.round((e.clientX - r.left) / r.width * 1000);
+      const y = Math.round((e.clientY - r.top) / r.height * 1000);
+      if (x < 0 || x > 1000 || y < 0 || y > 1000) return;
+      setAgentStatus('Clicking in browser…');
+      try {
+        const res = await browserApi('/action', { action: 'click_at', x, y });
+        if (!res.ok) throw new Error(res.error);
+        await applyBrowserState(res.state);
+        markAction({ x, y }, 'You clicked');
+        setAgentStatus(`Browser open · ${res.state.title || res.state.url}`);
+      } catch (err) {
+        addAssistantMessage(`Browser click failed: ${err.message}`);
+        setAgentStatus('Browser open');
+      }
+    }
+
+    function stopBrowserAgent() {
+      const run = agentRun;
+      if (!run) return;
+      agentRun = null;
+      run.stopped = true;
+      run.abort.abort();
+      updateAgentButtons();
+      addAssistantMessage('Browser agent stopped.');
+    }
+
+    async function startBrowserAgent() {
+      if (agentRun) return;
+      const goal = document.getElementById('agentGoalInput').value.trim();
+      if (!goal) {
+        addAssistantMessage('Type a goal for the browser agent first, for example "Find the population of Derby on Wikipedia".');
+        return;
+      }
+      if (!apiKey) {
+        toggleModal(true);
+        addAssistantMessage('Please enter your Gemini API key to continue.');
+        return;
+      }
+
+      const run = { abort: new AbortController(), steps: 0, stopped: false };
+      agentRun = run;
+      updateAgentButtons();
+      addUserMessage(`🤖 Browser goal: ${goal}`);
+      const signal = run.abort.signal;
+
+      try {
+        let st = await browserApi('/state', undefined, signal);
+        if (!st.running) {
+          const startUrl = document.getElementById('agentUrlInput').value.trim();
+          st = await browserApi('/open', startUrl ? { url: startUrl } : {}, signal);
+        }
+        agentServerOnline = true;
+        await applyBrowserState(st);
+
+        const history = [{ role: 'user', parts: [
+          { text: `Goal: ${goal}\nThe browser is currently at ${st.url} ("${st.title}"). Look at the screenshot and take the first step.` },
+          { inlineData: { mimeType: 'image/jpeg', data: st.screenshot } },
+        ] }];
+
+        let outcome = null, spokenSummary = '';
+        while (!run.stopped) {
+          if (run.steps >= AGENT_MAX_STEPS) {
+            outcome = `Stopped after ${AGENT_MAX_STEPS} steps without finishing. Refine the goal or continue manually.`;
+            break;
+          }
+          setAgentStatus(`Agent thinking · step ${run.steps + 1} of ${AGENT_MAX_STEPS}`);
+          const { content, model } = await callAgentModel(history, signal);
+          document.getElementById('modelBadge').textContent = model;
+          history.push(content);
+
+          const parts = content.parts || [];
+          const note = parts.filter(p => p.text && !p.thought).map(p => p.text).join('').trim();
+          const calls = parts.filter(p => p.functionCall).map(p => p.functionCall);
+          if (note) addAgentLog(`💭 ${note}`);
+
+          if (!calls.length) {
+            history.push({ role: 'user', parts: [{ text: 'Reply with a function call. Call finish when the goal is complete or cannot be completed.' }] });
+            continue;
+          }
+
+          const responses = [];
+          let finishCall = null;
+          let lastState = null;
+          for (const call of calls) {
+            if (call.name === 'finish') {
+              finishCall = call;
+              responses.push({ functionResponse: { name: call.name, response: { status: 'ok' } } });
+              continue;
+            }
+            if (finishCall) {
+              responses.push({ functionResponse: { name: call.name, response: { error: 'Skipped because finish was called.' } } });
+              continue;
+            }
+            run.steps++;
+            const label = describeCall(call);
+            try {
+              const res = await browserApi('/action', { action: call.name, ...(call.args || {}) }, signal);
+              if (res.ok) {
+                addAgentLog(`✔ ${run.steps}. ${label}`);
+                lastState = res.state;
+                await applyBrowserState(res.state);
+                if (call.name === 'click_at' || call.name === 'type_text') markAction(call.args, 'AI');
+                responses.push({ functionResponse: { name: call.name, response: { result: res.result, url: res.state.url, title: res.state.title } } });
+              } else {
+                addAgentLog(`✖ ${run.steps}. ${label}: ${res.error}`);
+                responses.push({ functionResponse: { name: call.name, response: { error: res.error } } });
+              }
+            } catch (err) {
+              if (err.name === 'AbortError') throw err;
+              addAgentLog(`✖ ${run.steps}. ${label}: ${err.message}`);
+              responses.push({ functionResponse: { name: call.name, response: { error: err.message } } });
+            }
+          }
+
+          if (finishCall) {
+            const args = finishCall.args || {};
+            spokenSummary = args.summary || 'Done.';
+            outcome = (args.success !== false ? '✅ ' : '⚠️ ') + spokenSummary;
+            break;
+          }
+
+          // Send the action results plus a fresh screenshot back to Gemini.
+          const current = lastState || await browserApi('/state', undefined, signal);
+          await applyBrowserState(current);
+          responses.push({ text: `Now at: ${current.url} ("${current.title}"). Continue toward the goal, or call finish.` });
+          responses.push({ inlineData: { mimeType: 'image/jpeg', data: current.screenshot } });
+          history.push({ role: 'user', parts: responses });
+          pruneOldScreenshots(history);
+        }
+
+        if (outcome && !run.stopped) {
+          addAssistantMessage(outcome);
+          speakText(spokenSummary || outcome);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') addAssistantMessage(`Browser agent error: ${err.message}`);
+      } finally {
+        if (agentRun === run) agentRun = null;
+        updateAgentButtons();
+        document.getElementById('statusText').textContent = 'Ready';
+        checkBrowserServer();
+      }
+    }
+
+    // Keep only the newest screenshot in the conversation so requests stay small.
+    function pruneOldScreenshots(history) {
+      let keptLatest = false;
+      for (let i = history.length - 1; i >= 0; i--) {
+        const turn = history[i];
+        if (!turn.parts || !turn.parts.some(p => p.inlineData)) continue;
+        if (!keptLatest) { keptLatest = true; continue; }
+        turn.parts = turn.parts.map(p => p.inlineData ? { text: '[earlier screenshot omitted]' } : p);
+      }
+    }
+
+    async function callAgentModel(history, signal) {
+      const first = lockedModel || preferredModel;
+      const order = [...(first ? [first] : []),
+        ...MODEL_FALLBACK_CHAIN.filter(m => m !== first && !deadModels.has(m))];
+      let lastError = null;
+      for (const model of order) {
+        try {
+          const content = await callGeminiAgent(model, history, signal);
+          if (!lockedModel) preferredModel = model;
+          return { content, model };
+        } catch (err) {
+          if (err.name === 'AbortError') throw err;
+          console.warn(`Agent model ${model} failed:`, err);
+          lastError = err;
+          if (err.dead) deadModels.add(model);
+          if (!err.retryable) break;
+        }
+      }
+      throw lastError || new Error('No Gemini model is available right now.');
+    }
+
+    // One non-streaming generateContent call with function declarations.
+    async function callGeminiAgent(model, history, signal) {
+      const ctl = new AbortController();
+      const relay = () => ctl.abort();
+      signal.addEventListener('abort', relay);
+      const timer = setTimeout(() => ctl.abort(), AGENT_CALL_TIMEOUT_MS);
+      const payload = {
+        systemInstruction: { parts: [{ text: BROWSER_AGENT_INSTRUCTION }] },
+        contents: history,
+        tools: [{ functionDeclarations: BROWSER_TOOLS }],
+        toolConfig: { functionCallingConfig: { mode: 'ANY' } },
+        generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
+      };
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      try {
+        const response = await fetch(url, {
+          method: 'POST', signal: ctl.signal,
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          const err = new Error(`(${model}) ${data.error ? data.error.message : 'Request failed (' + response.status + ')'}`);
+          err.retryable = [404, 429, 500, 503].includes(response.status);
+          err.dead = response.status === 404;
+          throw err;
+        }
+        const data = await response.json();
+        const candidate = data.candidates && data.candidates[0];
+        if (!candidate || !candidate.content || !candidate.content.parts || !candidate.content.parts.length) {
+          const err = new Error(`(${model}) Empty response${candidate && candidate.finishReason ? ` (${candidate.finishReason})` : ''}.`);
+          err.retryable = true;
+          throw err;
+        }
+        return candidate.content;
+      } catch (e) {
+        // Our own timeout (not a user stop) should fall through to the next model.
+        if (e.name === 'AbortError' && !signal.aborted) {
+          const err = new Error(`(${model}) timed out after ${AGENT_CALL_TIMEOUT_MS / 1000}s`);
+          err.retryable = true;
+          throw err;
+        }
+        if (e.name === 'TypeError') {
+          const err = new Error('Network error – check your connection.');
+          err.retryable = false;
+          throw err;
+        }
+        throw e;
+      } finally {
+        clearTimeout(timer);
+        signal.removeEventListener('abort', relay);
+      }
+    }
+
+    function setupBrowserAgent() {
+      document.getElementById('screenImage').addEventListener('click', onBrowserViewClick);
+      document.getElementById('agentGoalInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') startBrowserAgent();
+      });
+      updateAgentButtons();
+      checkBrowserServer();
     }
 
     function formatMd(t) {

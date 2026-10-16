@@ -36,7 +36,7 @@ Utilizes gemini-3.8-flash as primary, automatically falling back through gemini-
 
 🔒 Privacy-First Design:
 
-Runs completely client-side in your browser. API keys are stored locally in localStorage and never sent to external server backends.
+Gemini is called directly from your browser. API keys are stored locally in localStorage and are never sent to the local server or any other backend. The optional local server only drives the browser for the Browser Agent; it does not receive or store your key.
 
 🚀 Getting Started
 
@@ -55,9 +55,13 @@ Clone or download the repository:
 git clone https://github.com/your-username/screenhelp-ai.git
 
 
-Open index.html directly in any web browser, or serve it using a local static web server:
+Open index.html directly in any web browser for the screen-assistant features, or run the local server (required for the Browser Agent, see below):
 
-npx serve .
+npm install
+npm run install-browser   # downloads Chromium for Playwright (one time)
+npm start                 # then open http://localhost:3000
+
+Using a Chrome you already have? Skip the download step and start with CHROME_PATH=/path/to/chrome npm start.
 
 
 🕹️ How to Use
@@ -82,6 +86,25 @@ Click Draw to mark areas with the Pen or Highlighter before sending questions.
 
 Click Crop Area to click and drag over a specific UI element you want analyzed.
 
+🤖 Browser Agent (Gemini controls a browser)
+
+The Browser Agent opens a real Chromium window controlled by the local server (server.js) and lets Gemini drive it toward a goal you type, for example "Find the population of Derby on Wikipedia".
+
+1. Run npm start and open http://localhost:3000, then set your API key.
+2. Enter a Start URL and your goal in the Browser Agent bar and click Start Agent (or press Enter).
+3. Each step, Gemini looks at the browser screenshot and calls one of: navigate, click_at, type_text, key_press, scroll, go_back, wait, or finish. The server performs the action and returns a new screenshot.
+4. The step log appears in the chat, and the viewport shows what the browser sees. Click Stop at any time.
+5. You can also click directly on the browser view to take over manually (for example to dismiss a login prompt).
+
+Coordinates are normalized to 0–1000 on each axis, measured from the top-left of the page.
+
+Safety notes:
+- The agent only opens http and https pages. Dialogs (alert/confirm) are dismissed automatically.
+- The system prompt tells the agent not to enter passwords or payment details, or to buy, send, delete or publish anything unless your goal asks for it. Still, watch the run and use Stop if needed.
+- The server has no login. It only listens on the address you run it on; use HOST=127.0.0.1 npm start to keep it on your own machine only.
+
+Environment variables for npm start: PORT (default 3000), HOST (default 0.0.0.0), HEADLESS=false (show the Chromium window on your machine), CHROME_PATH (use an installed Chrome), NO_SANDBOX=1 (needed when running as root in some containers).
+
 🛠️ Built With
 
 Frontend: HTML5, Vanilla JavaScript (ES6+), CSS3
@@ -93,6 +116,8 @@ Icons: Font Awesome 6
 AI API: Google Gemini API (Multimodal Vision & Language)
 
 Browser APIs: WebRTC getDisplayMedia, Web Speech API (SpeechRecognition & SpeechSynthesis), Canvas API
+
+Browser automation: Node.js, Playwright (Chromium)
 
 📄 License
 
