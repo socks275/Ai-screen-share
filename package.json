@@ -1,8 +1,8 @@
 {
-  "name": "screenhelp-ai",
-  "version": "1.1.0",
+  "name": "screenedit-ai",
+  "version": "2.0.0",
   "private": true,
-  "description": "ScreenHelp AI: Gemini visual assistant with a browser agent that controls a real Chromium",
+  "description": "ScreenEdit AI: share your screen, AI detects the website, asks you to sign in if needed, and edits it live for you.",
   "license": "MIT",
   "main": "server.js",
   "scripts": {
