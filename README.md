@@ -1,131 +1,127 @@
-🖥️ ScreenHelp AI
+# ✨ ScreenEdit AI
 
-ScreenHelp AI is an interactive, browser-based visual assistant powered by Google Gemini multimodal models. It allows users to capture live screens, paste screenshots, draw annotations, crop regions, and ask questions about their display with visual feedback and voice support.
+**Edit any website just by sharing your screen.** No URL typing, no browser extensions, no plugins. Share → AI detects the site → you sign in (if needed) → AI edits it live.
 
-✨ Features
+![concept](https://img.shields.io/badge/works_with-Chrome%20%7C%20Edge%20%7C%20Brave%20%7C%20Safari-indigo) ![powered](https://img.shields.io/badge/powered_by-Google%20Gemini-purple) ![license](https://img.shields.io/badge/license-MIT-emerald)
 
-🎥 Flexible Viewport Inputs:
+---
 
-Share Screen: Live screen capture via WebRTC Screen Share.
+## 🚀 How it works (the 3-click flow)
 
-Upload & Clipboard: Drag & drop image files or press Ctrl + V (Cmd + V) to paste screenshots directly from your clipboard.
+1. **Click "Share your screen"** and pick the browser tab showing the website you want to change.
+2. **The AI scans your screen**, identifies the website (URL, title, page contents), and shows you what it found.
+3. **Tell it what to change** in plain English, e.g. *"Change the headline to something catchier and make the button pink"*.
+   - If the site needs signing in, the AI opens its own visible Chromium window and asks you to sign in there. Your credentials never leave your computer.
+   - The AI then drives that browser to perform your edits live — clicking Edit, replacing text, pressing Save/Publish, etc.
+4. **Watch the edits happen live** in the viewport. Step-by-step progress and an animated timeline show what the AI is doing.
 
-Demo Screenshot Generator: Built-in sample dashboard generator to quickly test functionality without sharing sensitive screens.
+That's it. No URL bar, no dev tools, no manual browser setup.
 
-✍️ Interactive Canvas Tools:
+---
 
-Freehand Drawing: Draw directly on top of screen captures using Pen and Highlighter tools with custom color picking.
+## 🎯 Features
 
-Area Crop Tool: Select and crop specific screen areas for focused AI analysis, with quick one-click crop resetting.
+| | |
+|---|---|
+| 🖥️ **Zero-URL workflow** | Share your screen; the AI reads the address bar & page visually. |
+| 🤖 **Live AI editing** | AI drives a real Chromium browser (Playwright) to perform clicks, typing, scrolling, saving. |
+| 🔐 **Safe sign-in handoff** | When a login wall appears, the AI pauses and asks you to sign in inside its own visible browser window. Credentials never touch any server. |
+| 📝 **Smart edit mode** | Understands CMS editors (WordPress, Shopify, Notion, Squarespace, Webflow, GitHub, Google Docs, Canva, admin dashboards, etc.) — finds the Edit button, selects text, types the new version, clicks Save/Publish. |
+| 🎨 **Beautiful new UI** | Gradient hero, animated progress timeline, step-by-step agent log, glowing action targets, voice input & readout. |
+| ✍️ **Annotations** | Draw pen/highlighter marks on the screen to point the AI at specific elements. |
+| ✂️ **Crop** | Ask the AI about a specific region of the screen. |
+| 🎙️ **Voice** | Talk to it with continuous voice, hear responses spoken aloud. |
+| 🧠 **Smart model fallback** | Automatically tries the fastest Gemini model first, falls back gracefully when models are busy. |
+| 🔒 **Private** | Your Gemini API key lives in `localStorage` only. The local server only drives the browser — it never sees your key. |
 
-🎯 Visual Target & Coordinate Detection:
+---
 
-Click Target Overlays: Automatically highlights and animates click targets on top of your screen when asking "Where to click?".
+## 📦 Quick start
 
-Bounding Box Overlay: Renders normalized element bounding boxes directly on top of the rendered image.
-
-🎙️ Voice & Audio Experience:
-
-Continuous Voice Listening: Hands-free continuous speech recognition using Web Speech API.
-
-Text-to-Speech Readout: Instant voice readouts for AI responses with simple toggle controls.
-
-⚡ Smart Model Fallback Chain:
-
-Tries the fastest model first (gemini-3.5-flash-lite), then falls back through gemini-3.1-flash-lite, gemini-3.8-flash, gemini-3.5-flash and the legacy 2.5 models. If every model is busy ("This model is currently experiencing high demand") or rate limited, it waits a few seconds and tries again (up to 3 passes, honouring Google's retry hints). Models your key cannot use are skipped for the rest of the session, and an invalid API key is reported straight away.
-
-🔒 Privacy-First Design:
-
-Gemini is called directly from your browser. API keys are stored locally in localStorage and are never sent to the local server or any other backend. The optional local server only drives the browser for the Browser Agent; it does not receive or store your key.
-
-🚀 Getting Started
-
-Prerequisites
-
-All you need is a modern web browser (Google Chrome, Microsoft Edge, Brave, or Safari) and a Google Gemini API Key.
-
-Get a free API key from Google AI Studio.
-
-Installation
-
-No complex build setup or npm installations are required.
-
-Clone or download the repository:
-
-git clone https://github.com/your-username/screenhelp-ai.git
-
-
-Open index.html directly in any web browser for the screen-assistant features, or run the local server (required for the Browser Agent, see below):
-
+```bash
+# 1. Install
 npm install
-npm run install-browser   # downloads Chromium for Playwright (one time)
-npm start                 # then open http://localhost:3000
+npm run install-browser   # downloads Chromium for Playwright (one-time, ~150MB)
 
-Using a Chrome you already have? Skip the download step and start with CHROME_PATH=/path/to/chrome npm start.
+# 2. Run
+npm start
 
+# 3. Open
+#    Visit http://localhost:3000
+```
 
-🕹️ How to Use
+Then:
 
-Configure API Key: Click the Set API Key button in the top right header and paste your Gemini API key.
+1. Click **Set API Key** and paste a free Gemini key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+2. Click **Share your screen** → pick the browser tab you want to edit.
+3. Wait a moment for the AI to detect the site, then tell it what to change.
 
-Load Screen Content:
+> 💡 The AI browser window is **visible by default** (so you can watch edits happen and sign in when asked). Set `HEADLESS=true npm start` to hide it.
 
-Click Share Screen to select a monitor or window.
+### Already have Chrome/Chromium installed?
 
-Click Upload or paste (Ctrl+V) an image file.
+Skip the download and point to it directly:
 
-Ask the AI Assistant:
+```bash
+CHROME_PATH=/path/to/your/chrome npm start
+```
 
-Use quick action buttons (e.g., "Do you like this design?", "Where to click?", "Find Errors").
+### Running on a server / container with no display?
 
-Type any prompt in the chat box or use the microphone button for voice input.
+```bash
+HEADLESS=true NO_SANDBOX=1 npm start
+```
+(You won't be able to sign in interactively in this mode — use it only for public pages or sites with saved sessions.)
 
-Use Visual Tools:
+---
 
-Click Draw to mark areas with the Pen or Highlighter before sending questions.
+## 🧭 How the editing agent works
 
-Click Crop Area to click and drag over a specific UI element you want analyzed.
+After you share your screen and describe an edit, ScreenEdit AI:
 
-🤖 Browser Agent (Gemini controls a browser)
+1. **Detects** the website visually from your shared screen (address bar + logos + content).
+2. **Opens** that URL in its own Chromium window (running through Playwright on your machine).
+3. **Scans** the page, looking for cookie banners, login walls, edit controls, text fields, and action buttons.
+4. **Pauses for sign-in** if it hits an auth wall — you sign in directly in the AI's browser window, then click *"I'm signed in"*.
+5. **Performs** your requested edit step-by-step: click Edit → select existing text → type new text → click Save/Publish.
+6. **Confirms** the change by showing you the live result in the app.
 
-The Browser Agent opens a real Chromium window controlled by the local server (server.js) and lets Gemini drive it toward a goal you type, for example "Find the population of Derby on Wikipedia".
+Each action the AI takes is shown in the chat panel with ✔ success / ✖ error logs, and a glowing target ring shows you where it clicked.
 
-1. Run npm start and open http://localhost:3000, then set your API key.
-2. Enter a Start URL and your goal in the Browser Agent bar and click Start Agent (or press Enter).
-3. Each step, Gemini looks at the browser screenshot and calls one of: navigate, click_at, type_text, key_press, scroll, go_back, wait, or finish. The server performs the action and returns a new screenshot.
-4. The step log appears in the chat, and the viewport shows what the browser sees. Click Stop at any time.
-5. You can also click directly on the browser view to take over manually (for example to dismiss a login prompt).
+---
 
-Coordinates are normalized to 0–1000 on each axis, measured from the top-left of the page.
+## 🛠️ Configuration
 
-Using the hosted page (GitHub Pages)?
-GitHub Pages only serves static files, so it cannot run the browser server. On the hosted page, Start Agent answers your goal with Gemini + Google Search instead (with source links). To let Gemini control a real browser from the hosted page:
-1. Run npm start on your computer.
-2. Click the gear in the Browser Agent bar and enter http://localhost:3000, then Save.
-3. If Chrome asks to allow access to devices on your local network, click Allow.
-The server only accepts the hosted page's origin (https://socks275.github.io by default). Change it with ALLOWED_ORIGINS, for example ALLOWED_ORIGINS=https://you.github.io npm start, or ALLOWED_ORIGINS=none to turn this off. Safari blocks https pages from calling http://localhost, so use Chrome, Edge or Firefox, or just open http://localhost:3000 directly.
+All variables are optional.
 
-Safety notes:
-- The agent only opens http and https pages. Dialogs (alert/confirm) are dismissed automatically.
-- The system prompt tells the agent not to enter passwords or payment details, or to buy, send, delete or publish anything unless your goal asks for it. Still, watch the run and use Stop if needed.
-- The server has no login. It only listens on the address you run it on; use HOST=127.0.0.1 npm start to keep it on your own machine only.
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `3000` | HTTP port |
+| `HOST` | `0.0.0.0` | Network interface to bind to |
+| `HEADLESS` | *(unset → visible window)* | `true` to hide the Chromium window |
+| `CHROME_PATH` | *(Playwright's bundled Chromium)* | Path to an existing Chrome/Chromium/Edge executable |
+| `NO_SANDBOX` | *(unset)* | `1` to pass `--no-sandbox` (needed in some Docker/root setups) |
+| `ALLOWED_ORIGINS` | `https://socks275.github.io` | Comma-separated list of web origins allowed to drive the browser. Use `none` to disallow all cross-origin access. |
 
-Environment variables for npm start: PORT (default 3000), HOST (default 0.0.0.0), HEADLESS=false (show the Chromium window on your machine), CHROME_PATH (use an installed Chrome), NO_SANDBOX=1 (needed when running as root in some containers), ALLOWED_ORIGINS (hosted pages allowed to use the browser server; default https://socks275.github.io).
+---
 
-🛠️ Built With
+## 🧱 Built with
 
-Frontend: HTML5, Vanilla JavaScript (ES6+), CSS3
+- **Frontend:** Vanilla HTML/JS/CSS + Tailwind CDN + Font Awesome
+- **AI:** Google Gemini multimodal vision models (`gemini-2.0-flash`, with automatic fallback)
+- **Capture:** WebRTC `getDisplayMedia` screen share + Canvas API
+- **Voice:** Web Speech API (`SpeechRecognition` + `SpeechSynthesis`)
+- **Browser automation:** Node.js + Playwright (Chromium)
 
-Styling: Tailwind CSS
+---
 
-Icons: Font Awesome 6
+## ⚠️ Safety notes
 
-AI API: Google Gemini API (Multimodal Vision & Language)
+- The AI is instructed **never** to enter passwords, payment details, or personal data — it calls `request_login` and hands control to you for any authentication.
+- It will not buy, delete, send money, or publish anything unless your prompt explicitly asks it to.
+- You can click **Stop** at any time to halt the agent instantly.
+- The local server has no authentication by design — it only listens on the interface you specify. Use `HOST=127.0.0.1` to keep it loopback-only.
 
-Browser APIs: WebRTC getDisplayMedia, Web Speech API (SpeechRecognition & SpeechSynthesis), Canvas API
+## 📄 License
 
-Browser automation: Node.js, Playwright (Chromium)
-
-📄 License
-
-Distributed under the MIT License. See LICENSE for more information.
+MIT — do what you want, have fun.
