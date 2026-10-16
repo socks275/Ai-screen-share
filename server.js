@@ -201,6 +201,39 @@ async function closeBrowser() {
   if (browser) await browser.close().catch(() => {});
 }
 
+const NET_ERROR_TEXT = {
+  ERR_NAME_NOT_RESOLVED: 'the site address could not be found',
+  ERR_INTERNET_DISCONNECTED: 'there is no internet connection',
+  ERR_NETWORK_CHANGED: 'the network changed while loading',
+  ERR_CONNECTION_REFUSED: 'the site refused the connection',
+  ERR_CONNECTION_CLOSED: 'the connection was closed by the site',
+  ERR_CONNECTION_RESET: 'the connection was reset by the site',
+  ERR_CONNECTION_TIMED_OUT: 'the connection timed out',
+  ERR_TIMED_OUT: 'the page took too long to load',
+  ERR_CERT_AUTHORITY_INVALID: 'the site certificate is not trusted',
+  ERR_CERT_DATE_INVALID: 'the site certificate has expired',
+  ERR_SSL_PROTOCOL_ERROR: 'a secure connection could not be made',
+  ERR_ABORTED: 'loading was interrupted',
+};
+
+// Turn Playwright's long error (with call log) into one readable sentence.
+function friendlyNavError(err, url) {
+  const raw = firstLine(err.message).replace(/^page\.goto:\s*/, '');
+  const code = (raw.match(/net::(ERR_[A-Z_]+)/) || [])[1];
+  if (code && NET_ERROR_TEXT[code]) return `Could not open ${url}: ${NET_ERROR_TEXT[code]}.`;
+  if (/Timeout \d+ms exceeded/i.test(raw)) return `Could not open ${url}: the page took too long to load.`;
+  return `Could not open ${url}: ${raw}`;
+}
+
+async function gotoPage(page, url) {
+  try {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+  } catch (err) {
+    throw httpError(422, friendlyNavError(err, url));
+  }
+  await settle(page);
+}
+
 async function settle(page) {
   await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
@@ -240,9 +273,7 @@ async function performAction(body) {
 
   switch (body.action) {
     case 'navigate': {
-      const url = normalizeUrl(body.url);
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
-      await settle(page);
+      await gotoPage(page, normalizeUrl(body.url));
       return `Opened ${page.url()}`;
     }
 
@@ -339,11 +370,9 @@ async function handleApi(req, res, route) {
     return enqueue(async () => {
       const page = await ensureBrowser();
       if (body.url) {
-        await page.goto(normalizeUrl(body.url), { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
-        await settle(page);
+        await gotoPage(page, normalizeUrl(body.url));
       } else if (page.url() === 'about:blank') {
-        await page.goto(DEFAULT_START_URL, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
-        await settle(page);
+        await gotoPage(page, DEFAULT_START_URL);
       }
       return sendJson(res, 200, await captureState(page));
     });

@@ -1490,7 +1490,7 @@
         setAgentStatus(`Browser open · ${st.title || st.url}`);
       } catch (err) {
         setAgentStatus('Browser unavailable');
-        addAssistantMessage(`Could not open the browser: ${err.message}`);
+        addAssistantMessage(err.message);
       }
     }
 
