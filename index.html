@@ -157,7 +157,8 @@
         <input id="agentGoalInput" type="text" placeholder="Goal, e.g. find the population of Derby" class="flex-1 min-w-[160px] bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500">
         <button id="agentOpenBtn" onclick="openBrowser()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-medium transition">Open Browser</button>
         <button id="agentStartBtn" onclick="startBrowserAgent()" class="px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium transition shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-play"></i> Start Agent</button>
-        <button id="agentStopBtn" onclick="stopBrowserAgent()" class="hidden px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-medium transition shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-stop"></i> Stop</button>
+        <button id="agentServerBtn" onclick="toggleModal(true, 'browserServerInput')" title="Browser server settings" class="px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 transition"><i class="fa-solid fa-gear"></i></button>
+                <button id="agentStopBtn" onclick="stopBrowserAgent()" class="hidden px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-medium transition shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-stop"></i> Stop</button>
         <div id="agentStatus" class="w-full text-[11px] text-slate-400 font-mono truncate">Checking browser server…</div>
       </div>
 
@@ -298,7 +299,7 @@
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-2">
           <i class="fa-solid fa-key text-amber-400"></i>
-          <h3 class="font-bold text-slate-100 text-sm">Set Gemini API Key</h3>
+          <h3 class="font-bold text-slate-100 text-sm">Settings: Gemini API Key</h3>
         </div>
         <button onclick="toggleModal(false)" class="text-slate-400 hover:text-slate-200"><i class="fa-solid fa-xmark"></i></button>
       </div>
@@ -312,11 +313,16 @@
           <label class="block text-[11px] text-slate-400 mb-1">API Key</label>
           <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
         </div>
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Browser agent server <span class="text-slate-600">(optional)</span></label>
+          <input type="text" id="browserServerInput" placeholder="Same site (leave empty when you opened http://localhost:3000)" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500">
+          <p class="text-[10px] text-slate-500 mt-1 leading-relaxed">Using the hosted page (e.g. GitHub Pages)? Run <code class="md-code">npm start</code> on your computer and enter <code class="md-code">http://localhost:3000</code> here so Gemini can drive a real browser. Leave empty to use Google Search answers instead.</p>
+        </div>
       </div>
 
       <div class="flex items-center justify-end gap-2">
         <button onclick="toggleModal(false)" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium">Cancel</button>
-        <button onclick="saveApiKey()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-md shadow-indigo-600/20">Save Key</button>
+        <button onclick="saveApiKey()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-md shadow-indigo-600/20">Save</button>
       </div>
     </div>
   </div>
@@ -342,17 +348,21 @@
     let isDrawing = false;
     let drawCtx = null;
 
-    // Free Tier Models in Priority Fallback Order
+    // Free Tier Models in Priority Fallback Order (fast + current first, legacy 2.5 last:
+    // Google now limits 2.5 models to projects that already used them).
     const MODEL_FALLBACK_CHAIN = [
-      'gemini-2.5-flash-lite',   // fastest
-      'gemini-2.5-flash',
+      'gemini-3.5-flash-lite',   // fastest
       'gemini-3.1-flash-lite',
-      'gemini-3.5-flash-lite',
+      'gemini-3.8-flash',
       'gemini-3.5-flash',
-      'gemini-3.8-flash'
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-flash'
     ];
     let lockedModel = localStorage.getItem('SH_MODEL') || null;
+    if (lockedModel && !MODEL_FALLBACK_CHAIN.includes(lockedModel)) { lockedModel = null; localStorage.removeItem('SH_MODEL'); }
     const FIRST_BYTE_TIMEOUT_MS = 8000;
+    const MODEL_RETRY_ROUNDS = 3;      // passes over the chain when every model is busy
+    const MAX_RETRY_WAIT_MS = 15000;   // longest pause between passes
 
     // System instruction defining personality and behavior
     const SYSTEM_INSTRUCTION = `You are ScreenHelp AI, an intelligent visual screen assistant with a natural, engaging personality.
@@ -377,17 +387,33 @@
       btnText.textContent = apiKey ? 'Key Configured' : 'Set API Key';
     }
 
-    function toggleModal(show) {
+    function toggleModal(show, focusId) {
       document.getElementById('apiKeyModal').classList.toggle('hidden', !show);
-      if (show) document.getElementById('apiKeyInput').value = apiKey;
+      if (show) {
+        document.getElementById('apiKeyInput').value = apiKey;
+        document.getElementById('browserServerInput').value = browserServerUrl;
+        if (focusId) setTimeout(() => document.getElementById(focusId).focus(), 0);
+      }
     }
 
     function saveApiKey() {
-      apiKey = document.getElementById('apiKeyInput').value.trim();
+      const newKey = document.getElementById('apiKeyInput').value.trim();
+      const keyChanged = newKey !== apiKey;
+      apiKey = newKey;
       localStorage.setItem('GEMINI_API_KEY', apiKey);
+      if (keyChanged) deadModels.clear(); // a different key may have access to other models
+
+      let server = document.getElementById('browserServerInput').value.trim();
+      if (server && !/^https?:\/\//i.test(server)) server = 'http://' + server;
+      server = server.replace(/\/+$/, '');
+      const serverChanged = server !== browserServerUrl;
+      browserServerUrl = server;
+      server ? localStorage.setItem('SH_BROWSER_SERVER', server) : localStorage.removeItem('SH_BROWSER_SERVER');
+
       updateApiKeyUI();
       toggleModal(false);
-      addAssistantMessage('API Key saved successfully!');
+      addAssistantMessage(serverChanged ? 'Settings saved. Checking the browser server…' : 'Settings saved.');
+      if (serverChanged) checkBrowserServer();
     }
 
     // Helper to calculate exact rendered dimensions of image/video inside viewport container
@@ -959,37 +985,34 @@
         chat.scrollTop = chat.scrollHeight;
       };
 
-      const first = lockedModel || preferredModel;
-      const order = [...(first ? [first] : []),
-        ...MODEL_FALLBACK_CHAIN.filter(m => m !== first && !deadModels.has(m))];
       const t0 = performance.now();
       let tFirst = null;
       let lastError = null, reply = null, usedModel = null, aborted = false;
+      const signal = currentAbort.signal;
 
-      for (const modelName of order) {
-        try {
-          reply = await callGeminiApi(modelName, base64Image, promptText, currentAbort.signal, onChunk, () => { tFirst = performance.now() - t0; });
-          usedModel = modelName;
-          if (!lockedModel) preferredModel = modelName; // start here next time
-          break;
-        } catch (err) {
-          if (err.name === 'AbortError') { aborted = true; break; }
-          console.warn(`Model ${modelName} failed:`, err);
-          lastError = err;
-          if (err.dead) deadModels.add(modelName);
-          if (modelName === preferredModel && !lockedModel) preferredModel = null;
-          if (!err.retryable) break;
-        }
+      try {
+        const out = await withModelFallback(
+          model => callGeminiApi(model, base64Image, promptText, signal, onChunk, () => { tFirst = performance.now() - t0; }),
+          {
+            signal,
+            rounds: opts.silent ? 1 : MODEL_RETRY_ROUNDS, // background scans never wait around
+            onWait: s => { document.getElementById('statusText').textContent = `Models busy · retrying in ${s}s…`; },
+          });
+        reply = out.result;
+        usedModel = out.model;
+      } catch (err) {
+        if (err.name === 'AbortError') aborted = true;
+        else lastError = err;
       }
 
       isBusy = false;
       currentAbort = null;
       if (loadingId) removeMessage(loadingId);
-      document.getElementById('statusText').textContent = reply ? `Ready · first word ${(tFirst/1000).toFixed(1)}s, total ${((performance.now()-t0)/1000).toFixed(1)}s` : (aborted ? 'Ready' : 'Error');
+      document.getElementById('statusText').textContent = reply ? `Ready · first word ${((tFirst || 0)/1000).toFixed(1)}s, total ${((performance.now()-t0)/1000).toFixed(1)}s` : (aborted ? 'Ready' : 'Error');
       if (aborted) return;
 
       if (reply === null) {
-        if (!opts.silent || !lastError.retryable) addAssistantMessage(`Gemini API error: ${lastError ? lastError.message : 'Service unavailable.'}`);
+        if (!opts.silent || (lastError && lastError.fatal)) addAssistantMessage(lastError ? lastError.message : 'Gemini API error: service unavailable.');
         return;
       }
       if (opts.silent && /^\s*OK\b/i.test(reply)) return;
@@ -1030,17 +1053,9 @@
         });
       } catch (e) {
         if (e.name === 'AbortError') throw e;
-        const err = new Error('Network error – check your connection.');
-        err.retryable = false;
-        throw err;
+        throw networkError();
       }
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        const err = new Error(`(${model}) ${data.error ? data.error.message : 'Request failed (' + response.status + ')'}`);
-        err.retryable = [404, 429, 500, 503].includes(response.status);
-        err.dead = response.status === 404;
-        throw err;
-      }
+      if (!response.ok) throw await geminiHttpError(model, response);
 
       const reader = response.body.getReader();
       const dec = new TextDecoder();
@@ -1061,8 +1076,114 @@
         }
       }
       text = text.trim();
-      if (!text) { const err = new Error(`(${model}) Empty response.`); err.retryable = true; throw err; }
+      if (!text) { const err = new Error(`(${model}) Empty response.`); err.transient = true; throw err; }
       return text;
+    }
+
+    // ---------- Gemini error handling + model fallback (shared by chat, agent and web search) ----------
+
+    function networkError() {
+      const err = new Error('Network error: could not reach Gemini. Check your internet connection.');
+      err.fatal = true;
+      return err;
+    }
+
+    function parseRetryDelayMs(data) {
+      const details = (data && data.error && data.error.details) || [];
+      const info = details.find(d => d && typeof d.retryDelay === 'string');
+      const secs = info ? parseFloat(info.retryDelay) : NaN;
+      return Number.isFinite(secs) ? Math.round(secs * 1000) : 0;
+    }
+
+    // Turn a non-OK Gemini response into an Error tagged with how the fallback loop should treat it:
+    //   fatal     - stop trying (bad API key); every model would fail the same way
+    //   dead      - this model is unavailable for this key; skip it for the rest of the session
+    //   transient - overloaded / rate limited / server error; worth retrying after a pause
+    // Anything else (e.g. a 400 one model rejects) just moves on to the next model.
+    async function geminiHttpError(model, response) {
+      const data = await response.json().catch(() => ({}));
+      const status = response.status;
+      const raw = (data.error && data.error.message) || `Request failed (${status})`;
+      const err = new Error(`(${model}) ${raw}`);
+      err.status = status;
+      err.model = model;
+      err.raw = raw;
+      if (status === 401 || ((status === 400 || status === 403) && /api[ _-]?key/i.test(raw))) {
+        err.fatal = true;
+        err.message = `Your Gemini API key was rejected: ${raw} Click "Key Configured" at the top to update it.`;
+      } else if (status === 404 || /no longer (available|supported)|not (found|supported|available)|deprecated|limited to/i.test(raw)) {
+        err.dead = true;
+      } else if ([429, 500, 502, 503, 504].includes(status)) {
+        err.retryDelayMs = parseRetryDelayMs(data);
+        // A quota that resets in minutes/hours is not worth waiting for in the UI.
+        err.transient = !(err.retryDelayMs > 60000);
+      }
+      return err;
+    }
+
+    function sleep(ms, signal) {
+      return new Promise((resolve, reject) => {
+        if (signal && signal.aborted) return reject(new DOMException('Aborted', 'AbortError'));
+        const t = setTimeout(() => { signal && signal.removeEventListener('abort', onAbort); resolve(); }, ms);
+        const onAbort = () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')); };
+        signal && signal.addEventListener('abort', onAbort, { once: true });
+      });
+    }
+
+    // Run task(model) down the fallback chain. If every model fails with a temporary error
+    // (e.g. "This model is currently experiencing high demand"), wait and go round again.
+    async function withModelFallback(task, { signal, rounds = MODEL_RETRY_ROUNDS, onWait } = {}) {
+      const errors = new Map(); // model -> last error
+      for (let round = 0; round < rounds; round++) {
+        const first = lockedModel || preferredModel;
+        let order = [...(first ? [first] : []), ...MODEL_FALLBACK_CHAIN.filter(m => m !== first)]
+          .filter(m => !deadModels.has(m));
+        if (round > 0) {
+          order = order.filter(m => errors.has(m) && errors.get(m).transient);
+          if (!order.length) break;
+          const hinted = Math.max(0, ...order.map(m => errors.get(m).retryDelayMs || 0));
+          const waitMs = Math.min(MAX_RETRY_WAIT_MS, Math.max(hinted, 2000 * 2 ** (round - 1)));
+          if (onWait) onWait(Math.ceil(waitMs / 1000), round);
+          await sleep(waitMs, signal);
+        }
+        for (const model of order) {
+          try {
+            const result = await task(model);
+            if (!lockedModel) preferredModel = model; // start here next time
+            return { result, model };
+          } catch (err) {
+            if (err.name === 'AbortError') throw err;
+            console.warn(`Model ${model} failed:`, err);
+            if (!err.model) err.model = model;
+            errors.set(model, err);
+            if (err.dead) deadModels.add(model);
+            if (model === preferredModel && !lockedModel) preferredModel = null;
+            if (err.fatal) throw err;
+          }
+        }
+      }
+      throw summarizeModelErrors(errors);
+    }
+
+    function summarizeModelErrors(errors) {
+      const list = [...errors.values()];
+      if (!list.length) return new Error('No Gemini model is available for this API key right now.');
+      const busy = list.every(e => e.transient || e.dead) && list.some(e => e.transient);
+      const quota = list.some(e => e.status === 429);
+      const headline = busy
+        ? `Gemini is overloaded right now: every model was busy${quota ? ' or rate limited' : ''}, even after retrying. This is on Google's side and usually clears within a minute or two. Please try again shortly.`
+        : 'No Gemini model could answer this request.';
+      const byMessage = new Map(); // identical errors are listed once with all their models
+      for (const e of list) {
+        let msg = String(e.raw || e.message).replace(/^\(\S+\)\s*/, '').split('\n')[0];
+        if (msg.length > 110) msg = msg.slice(0, 110) + '…';
+        if (!byMessage.has(msg)) byMessage.set(msg, []);
+        byMessage.get(msg).push(e.model || '?');
+      }
+      const lines = [...byMessage].map(([msg, models]) => `• ${models.join(', ')}: ${msg}`);
+      const err = new Error(`${headline}\n${lines.join('\n')}`);
+      err.transient = busy;
+      return err;
     }
 
     // Wrapper: if a model produces nothing within the timeout, fall through to the next one
@@ -1077,7 +1198,7 @@
       } catch (e) {
         if (timedOut && e.name === 'AbortError') {
           const err = new Error(`(${model}) timed out after ${FIRST_BYTE_TIMEOUT_MS / 1000}s`);
-          err.retryable = true;
+          err.transient = true;
           throw err;
         }
         throw e;
@@ -1161,6 +1282,7 @@
       const input = document.getElementById('userPromptInput');
       input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 80) + 'px'; });
       document.getElementById('apiKeyInput').addEventListener('keydown', e => { if (e.key === 'Enter') saveApiKey(); });
+      document.getElementById('browserServerInput').addEventListener('keydown', e => { if (e.key === 'Enter') saveApiKey(); });
       window.addEventListener('keydown', e => { if (e.key === 'Escape') { toggleModal(false); toggleDrawMode(false); toggleCropMode(false); } });
       const vp = document.getElementById('viewportContainer');
       vp.addEventListener('dragover', e => e.preventDefault());
@@ -1381,16 +1503,39 @@
     - When the goal is achieved, call finish with success=true and a short summary containing the answer the user asked for.
     - Keep any text you write very short. Always respond with a function call.`;
 
+    // Where server.js lives. Empty = same origin (you opened http://localhost:3000).
+    // When this page is hosted elsewhere (e.g. GitHub Pages) set it to http://localhost:3000.
+    let browserServerUrl = (localStorage.getItem('SH_BROWSER_SERVER') || '').trim();
+
+    function browserApiUrl(route) {
+      return browserServerUrl.replace(/\/+$/, '') + BROWSER_API + route;
+    }
+
+    function noServerError(detail) {
+      const err = new Error(detail);
+      err.noServer = true;
+      return err;
+    }
+
     async function browserApi(route, body, signal) {
       const init = body === undefined
         ? { method: 'GET', signal }
         : { method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
       let res;
       try {
-        res = await fetch(BROWSER_API + route, init);
+        res = await fetch(browserApiUrl(route), init);
       } catch (e) {
         if (e.name === 'AbortError') throw e;
-        throw new Error('Browser server not reachable. Run "npm start" in the project folder and open http://localhost:3000.');
+        throw noServerError(browserServerUrl
+          ? `Could not reach the browser server at ${browserServerUrl}. Make sure "npm start" is running there (and allow local network access if your browser asks).`
+          : 'Browser server not reachable. Run "npm start" in the project folder and open http://localhost:3000.');
+      }
+      // A static host (GitHub Pages, file server, ...) answers with an HTML 404 page, not our JSON API.
+      const isJson = (res.headers.get('content-type') || '').includes('application/json');
+      if (!isJson) {
+        throw noServerError(browserServerUrl
+          ? `${browserServerUrl} is not a ScreenHelp browser server (HTTP ${res.status}).`
+          : `This page is hosted without the browser server (HTTP ${res.status}), so it cannot control a browser.`);
       }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Browser server error (${res.status})`);
@@ -1462,10 +1607,15 @@
       container.scrollTop = container.scrollHeight;
     }
 
+    const NO_SERVER_STATUS = 'No browser server · Start Agent answers with Google Search · click the gear to connect npm start';
+    const NO_SERVER_HINT = 'Start Agent will answer with Google Search instead. To let Gemini control a real browser, run "npm start" and open http://localhost:3000 (or click the gear and connect http://localhost:3000).';
+
     async function checkBrowserServer() {
+      setAgentStatus('Checking browser server…');
       try {
         const st = await browserApi('/state');
         agentServerOnline = true;
+        document.getElementById('agentStatus').title = '';
         if (st.running) {
           await applyBrowserState(st);
           setAgentStatus(`Browser open · ${st.title || st.url}`);
@@ -1474,9 +1624,8 @@
         }
       } catch (e) {
         agentServerOnline = false;
-        setAgentStatus(location.protocol === 'file:'
-          ? 'Browser agent needs the local server: run "npm start", then open http://localhost:3000'
-          : 'Browser server offline: run "npm start" to enable the browser agent');
+        setAgentStatus(NO_SERVER_STATUS);
+        document.getElementById('agentStatus').title = `${e.message}\n${NO_SERVER_HINT}`;
       }
     }
 
@@ -1489,8 +1638,10 @@
         await applyBrowserState(st);
         setAgentStatus(`Browser open · ${st.title || st.url}`);
       } catch (err) {
-        setAgentStatus('Browser unavailable');
-        addAssistantMessage(`Could not open the browser: ${err.message}`);
+        setAgentStatus(err.noServer ? 'No browser server · web search mode' : 'Browser unavailable');
+        addAssistantMessage(err.noServer
+          ? `Could not open the browser: ${err.message}\n\nThe browser agent needs the local server (server.js), which GitHub Pages and other static hosts cannot run. Run **npm start** on your computer and open http://localhost:3000, or click the gear in the Browser Agent bar and enter http://localhost:3000. Without it, Start Agent answers your goal using Google Search.`
+          : `Could not open the browser: ${err.message}`);
       }
     }
 
@@ -1544,7 +1695,16 @@
       const signal = run.abort.signal;
 
       try {
-        let st = await browserApi('/state', undefined, signal);
+        let st;
+        try {
+          st = await browserApi('/state', undefined, signal);
+        } catch (e) {
+          if (!e.noServer) throw e;
+          // No browser server (e.g. the page is on GitHub Pages): answer the goal with Google Search instead.
+          agentServerOnline = false;
+          await answerGoalWithSearch(goal, signal);
+          return;
+        }
         if (!st.running) {
           const startUrl = document.getElementById('agentUrlInput').value.trim();
           st = await browserApi('/open', startUrl ? { url: startUrl } : {}, signal);
@@ -1642,6 +1802,101 @@
       }
     }
 
+    const SEARCH_INSTRUCTION = `You are the ScreenHelp assistant answering a task the user gave the browser agent. No browser is available, so use Google Search to find the answer.
+    - Give the specific answer first (numbers, names, dates), then at most two short sentences of context.
+    - Say how recent the figure is (e.g. "2024 estimate") when it can change over time.
+    - If the task needs actions on a website (logging in, filling forms, buying), explain that the local browser server is required for that.`;
+
+    // Fallback when server.js is not reachable: Gemini + Google Search grounding.
+    async function answerGoalWithSearch(goal, signal) {
+      setAgentStatus('No browser server · searching the web with Gemini…');
+      const loadingId = addLoadingMessage();
+      try {
+        const { result, model } = await withModelFallback(m => callGeminiSearch(m, goal, signal), {
+          signal,
+          onWait: secs => setAgentStatus(`Gemini models busy · retrying in ${secs}s…`),
+        });
+        document.getElementById('modelBadge').textContent = model;
+        removeMessage(loadingId);
+        addAssistantMessage(`🔎 ${result.text}`);
+        if (result.sources.length) addSourceLinks(result.sources);
+        addAgentLog('ℹ No browser server connected, so this answer came from Google Search. Run "npm start" (or connect it with the gear button) to let Gemini control a real browser.');
+        speakText(result.text);
+      } finally {
+        removeMessage(loadingId);
+        setAgentStatus(NO_SERVER_STATUS);
+      }
+    }
+
+    async function callGeminiSearch(model, goal, signal) {
+      const ctl = new AbortController();
+      const relay = () => ctl.abort();
+      signal.addEventListener('abort', relay);
+      const timer = setTimeout(() => ctl.abort(), AGENT_CALL_TIMEOUT_MS);
+      const payload = {
+        systemInstruction: { parts: [{ text: SEARCH_INSTRUCTION }] },
+        contents: [{ role: 'user', parts: [{ text: goal }] }],
+        tools: [{ google_search: {} }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 1024 },
+      };
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST', signal: ctl.signal,
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw await geminiHttpError(model, response);
+        const data = await response.json();
+        const candidate = data.candidates && data.candidates[0];
+        const parts = (candidate && candidate.content && candidate.content.parts) || [];
+        const text = parts.filter(p => p.text && !p.thought).map(p => p.text).join('').trim();
+        if (!text) {
+          const err = new Error(`(${model}) Empty response${candidate && candidate.finishReason ? ` (${candidate.finishReason})` : ''}.`);
+          err.transient = true;
+          throw err;
+        }
+        const chunks = (candidate.groundingMetadata && candidate.groundingMetadata.groundingChunks) || [];
+        const seen = new Set();
+        const sources = [];
+        for (const c of chunks) {
+          if (!c.web || !c.web.uri || seen.has(c.web.uri)) continue;
+          seen.add(c.web.uri);
+          sources.push({ uri: c.web.uri, title: c.web.title || c.web.uri });
+          if (sources.length >= 4) break;
+        }
+        return { text, sources };
+      } catch (e) {
+        if (e.name === 'AbortError' && !signal.aborted) {
+          const err = new Error(`(${model}) timed out after ${AGENT_CALL_TIMEOUT_MS / 1000}s`);
+          err.transient = true;
+          throw err;
+        }
+        if (e.name === 'TypeError') throw networkError();
+        throw e;
+      } finally {
+        clearTimeout(timer);
+        signal.removeEventListener('abort', relay);
+      }
+    }
+
+    function addSourceLinks(sources) {
+      const container = document.getElementById('chatMessages');
+      const row = document.createElement('div');
+      row.className = 'pl-9 flex flex-wrap gap-1.5';
+      for (const s of sources) {
+        if (!/^https?:/i.test(s.uri)) continue;
+        const a = document.createElement('a');
+        a.href = s.uri;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = s.title;
+        a.className = 'text-[10px] px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-cyan-300 hover:bg-slate-700';
+        row.appendChild(a);
+      }
+      container.appendChild(row);
+      container.scrollTop = container.scrollHeight;
+    }
+
     // Keep only the newest screenshot in the conversation so requests stay small.
     function pruneOldScreenshots(history) {
       let keptLatest = false;
@@ -1654,24 +1909,11 @@
     }
 
     async function callAgentModel(history, signal) {
-      const first = lockedModel || preferredModel;
-      const order = [...(first ? [first] : []),
-        ...MODEL_FALLBACK_CHAIN.filter(m => m !== first && !deadModels.has(m))];
-      let lastError = null;
-      for (const model of order) {
-        try {
-          const content = await callGeminiAgent(model, history, signal);
-          if (!lockedModel) preferredModel = model;
-          return { content, model };
-        } catch (err) {
-          if (err.name === 'AbortError') throw err;
-          console.warn(`Agent model ${model} failed:`, err);
-          lastError = err;
-          if (err.dead) deadModels.add(model);
-          if (!err.retryable) break;
-        }
-      }
-      throw lastError || new Error('No Gemini model is available right now.');
+      const { result, model } = await withModelFallback(m => callGeminiAgent(m, history, signal), {
+        signal,
+        onWait: secs => setAgentStatus(`Gemini models busy · retrying in ${secs}s…`),
+      });
+      return { content: result, model };
     }
 
     // One non-streaming generateContent call with function declarations.
@@ -1694,18 +1936,12 @@
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
           body: JSON.stringify(payload),
         });
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          const err = new Error(`(${model}) ${data.error ? data.error.message : 'Request failed (' + response.status + ')'}`);
-          err.retryable = [404, 429, 500, 503].includes(response.status);
-          err.dead = response.status === 404;
-          throw err;
-        }
+        if (!response.ok) throw await geminiHttpError(model, response);
         const data = await response.json();
         const candidate = data.candidates && data.candidates[0];
         if (!candidate || !candidate.content || !candidate.content.parts || !candidate.content.parts.length) {
           const err = new Error(`(${model}) Empty response${candidate && candidate.finishReason ? ` (${candidate.finishReason})` : ''}.`);
-          err.retryable = true;
+          err.transient = true;
           throw err;
         }
         return candidate.content;
@@ -1713,14 +1949,10 @@
         // Our own timeout (not a user stop) should fall through to the next model.
         if (e.name === 'AbortError' && !signal.aborted) {
           const err = new Error(`(${model}) timed out after ${AGENT_CALL_TIMEOUT_MS / 1000}s`);
-          err.retryable = true;
+          err.transient = true;
           throw err;
         }
-        if (e.name === 'TypeError') {
-          const err = new Error('Network error – check your connection.');
-          err.retryable = false;
-          throw err;
-        }
+        if (e.name === 'TypeError') throw networkError();
         throw e;
       } finally {
         clearTimeout(timer);
