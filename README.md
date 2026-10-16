@@ -32,7 +32,7 @@ Text-to-Speech Readout: Instant voice readouts for AI responses with simple togg
 
 ⚡ Smart Model Fallback Chain:
 
-Utilizes gemini-3.8-flash as primary, automatically falling back through gemini-3.5-flash, gemini-3.5-flash-lite, and gemini-3.1-flash-lite to ensure maximum uptime.
+Tries the fastest model first (gemini-3.5-flash-lite), then falls back through gemini-3.1-flash-lite, gemini-3.8-flash, gemini-3.5-flash and the legacy 2.5 models. If every model is busy ("This model is currently experiencing high demand") or rate limited, it waits a few seconds and tries again (up to 3 passes, honouring Google's retry hints). Models your key cannot use are skipped for the rest of the session, and an invalid API key is reported straight away.
 
 🔒 Privacy-First Design:
 
@@ -98,12 +98,19 @@ The Browser Agent opens a real Chromium window controlled by the local server (s
 
 Coordinates are normalized to 0–1000 on each axis, measured from the top-left of the page.
 
+Using the hosted page (GitHub Pages)?
+GitHub Pages only serves static files, so it cannot run the browser server. On the hosted page, Start Agent answers your goal with Gemini + Google Search instead (with source links). To let Gemini control a real browser from the hosted page:
+1. Run npm start on your computer.
+2. Click the gear in the Browser Agent bar and enter http://localhost:3000, then Save.
+3. If Chrome asks to allow access to devices on your local network, click Allow.
+The server only accepts the hosted page's origin (https://socks275.github.io by default). Change it with ALLOWED_ORIGINS, for example ALLOWED_ORIGINS=https://you.github.io npm start, or ALLOWED_ORIGINS=none to turn this off. Safari blocks https pages from calling http://localhost, so use Chrome, Edge or Firefox, or just open http://localhost:3000 directly.
+
 Safety notes:
 - The agent only opens http and https pages. Dialogs (alert/confirm) are dismissed automatically.
 - The system prompt tells the agent not to enter passwords or payment details, or to buy, send, delete or publish anything unless your goal asks for it. Still, watch the run and use Stop if needed.
 - The server has no login. It only listens on the address you run it on; use HOST=127.0.0.1 npm start to keep it on your own machine only.
 
-Environment variables for npm start: PORT (default 3000), HOST (default 0.0.0.0), HEADLESS=false (show the Chromium window on your machine), CHROME_PATH (use an installed Chrome), NO_SANDBOX=1 (needed when running as root in some containers).
+Environment variables for npm start: PORT (default 3000), HOST (default 0.0.0.0), HEADLESS=false (show the Chromium window on your machine), CHROME_PATH (use an installed Chrome), NO_SANDBOX=1 (needed when running as root in some containers), ALLOWED_ORIGINS (hosted pages allowed to use the browser server; default https://socks275.github.io).
 
 🛠️ Built With
 

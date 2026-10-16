@@ -16,6 +16,9 @@
  *   HEADLESS=false       show the Chromium window on this machine
  *   CHROME_PATH=/path    use an installed Chrome/Chromium instead of Playwright's
  *   NO_SANDBOX=1         pass --no-sandbox (needed in some containers / as root)
+ *   ALLOWED_ORIGINS=...  comma-separated web origins (besides this server itself) that may
+ *                        use the browser API, e.g. the GitHub Pages copy of index.html.
+ *                        Default: https://socks275.github.io   Use "none" to allow none.
  */
 
 const http = require('http');
@@ -31,6 +34,12 @@ const MAX_BODY_BYTES = 64 * 1024;
 const NAV_TIMEOUT_MS = 30000;
 const INDEX_FILE = path.join(__dirname, 'index.html');
 const API_PREFIX = '/api/browser/';
+const ALLOWED_ORIGINS = new Set(
+  (process.env.ALLOWED_ORIGINS ?? 'https://socks275.github.io')
+    .split(',')
+    .map(s => s.trim().replace(/\/+$/, '').toLowerCase())
+    .filter(s => s && s !== 'none')
+);
 
 const session = {
   browser: null,
@@ -317,6 +326,46 @@ async function performAction(body) {
 
 // ---------- HTTP routing ----------
 
+// Cross-origin access: the hosted page (e.g. GitHub Pages) can drive this server only if its
+// origin is in ALLOWED_ORIGINS. Same-origin requests (http://localhost:3000) never need CORS.
+function requestOrigin(req) {
+  const origin = req.headers.origin;
+  return origin ? String(origin).replace(/\/+$/, '').toLowerCase() : '';
+}
+
+function isSameOrigin(req, origin) {
+  const host = String(req.headers.host || '').toLowerCase();
+  return origin === `http://${host}` || origin === `https://${host}`;
+}
+
+function applyCors(req, res) {
+  const origin = requestOrigin(req);
+  if (!origin || isSameOrigin(req, origin)) return true;
+  if (!ALLOWED_ORIGINS.has(origin)) return false;
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+  res.setHeader('Vary', 'Origin');
+  return true;
+}
+
+function handlePreflight(req, res) {
+  const allowed = applyCors(req, res);
+  if (!allowed || !requestOrigin(req)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end('Origin not allowed. Add it to ALLOWED_ORIGINS when starting the server.');
+  }
+  const headers = {
+    'Access-Control-Allow-Methods': 'GET, POST',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '600',
+  };
+  // Chrome's Private/Local Network Access: a public https page calling localhost.
+  if (req.headers['access-control-request-private-network']) {
+    headers['Access-Control-Allow-Private-Network'] = 'true';
+  }
+  res.writeHead(204, headers);
+  return res.end();
+}
+
 async function handleApi(req, res, route) {
   if (req.method === 'GET' && route === 'state') {
     return enqueue(async () => {
@@ -380,6 +429,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname.startsWith(API_PREFIX)) {
+      if (req.method === 'OPTIONS') return handlePreflight(req, res);
+      if (!applyCors(req, res)) {
+        throw httpError(403, `Origin ${req.headers.origin} is not allowed. Start the server with ALLOWED_ORIGINS=${req.headers.origin} to permit it.`);
+      }
       return await handleApi(req, res, url.pathname.slice(API_PREFIX.length));
     }
 
@@ -395,6 +448,9 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`ScreenHelp AI is running at http://localhost:${PORT}`);
   console.log(`Browser agent: ${HEADLESS ? 'headless Chromium' : 'visible Chromium window'}`);
+  if (ALLOWED_ORIGINS.size) {
+    console.log(`Hosted pages allowed to connect: ${[...ALLOWED_ORIGINS].join(', ')} (enter http://localhost:${PORT} in their settings)`);
+  }
 });
 
 async function shutdown() {
