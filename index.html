@@ -467,9 +467,9 @@
           <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 font-mono">
         </div>
         <div>
-          <label class="block text-[11px] text-slate-400 mb-1.5 font-medium">Browser editor server <span class="text-slate-600 font-normal">(usually leave blank)</span></label>
-          <input type="text" id="browserServerInput" placeholder="Same origin (http://localhost:3000)" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-mono">
-          <p class="text-[10px] text-slate-500 mt-1.5 leading-relaxed">Leave blank if you opened this page via <code class="md-code">npm start</code>. If you're on a hosted copy, run <code class="md-code">npm start</code> on your computer and enter <code class="md-code">http://localhost:3000</code>.</p>
+          <label class="block text-[11px] text-slate-400 mb-1.5 font-medium">Browser editor server</label>
+          <input type="text" id="browserServerInput" placeholder="http://localhost:3000" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-mono">
+          <p class="text-[10px] text-slate-500 mt-1.5 leading-relaxed">This page is hosted on GitHub Pages. Run <code class="md-code\">npm start</code> on your computer to start the local AI browser server, then enter <code class="md-code\">http://localhost:3000</code> here so the app can control the browser for live editing.</p>
         </div>
       </div>
 
@@ -1598,8 +1598,7 @@ Rules:
       catch(e){
         if(!e.noServer)throw e;
         agentServerOnline=false; updateServerPill();
-        await answerGoalWithSearch(goal,signal);
-        return;
+        addAssistantMessage(`🧭 I can see the site, but I cant reach a local AI browser server.\n\nTo edit live from this GitHub Pages copy:\n1. Open a terminal in this project folder on your computer\n2. Run <code class="md-code">npm install</code> (once)\n3. Run <code class="md-code">npm run install-browser</code> (once, downloads Chromium)\n4. Run <code class="md-code">npm start</code>\n5. Open the settings (key icon) and enter <code class="md-code">http://localhost:3000</code> as the browser editor server\n6. Send your edit request again.`);
       }
       agentServerOnline=true; updateServerPill();
 
@@ -1728,9 +1727,15 @@ Rules:
     finally{clearTimeout(timer);signal.removeEventListener('abort',relay);}
   }
 
-  function setupBrowserAgent(){
+  async function setupBrowserAgent(){
     document.getElementById('screenImage').addEventListener('click',onBrowserViewClick);
-    updateAgentButtons(); checkBrowserServer();
+    updateAgentButtons(); await checkBrowserServer();
+    // On GitHub Pages (non-localhost) without a configured server URL, prompt setup
+    const origin = window.location.origin;
+    const isLocalhost = /^(http:\/\/localhost|http:\/\/127\.0\.0\.1)/i.test(origin);
+    if(!isLocalhost && !browserServerUrl && !agentServerOnline){
+      addAssistantMessage(`🔧 Setup needed for live editing.\n\nThis page is hosted on GitHub Pages. To edit websites live:\n1. Run <code class="md-code">npm start</code> on your computer to start the local AI browser server\n2. Open the settings (key icon) and enter <code class="md-code">http://localhost:3000</code> as the browser editor server\n3. Send your edit request again\n\nYour Gemini API key works from here — only browser automation needs the local server.`);
+    }
   }
 
   /* ========================= FORMATTING ========================= */
