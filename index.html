@@ -802,6 +802,12 @@ TITLE: <page title>
 SUMMARY: <one line>
 LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
 
+    if (!apiKey) {
+      toggleModal(true);
+      addAssistantMessage('Please add your free Gemini API key first.');
+      return;
+    }
+
     try {
       const { result } = await withModelFallback(
         m => callGeminiOnce(m, b64, prompt, new AbortController().signal, null, null),
@@ -878,7 +884,17 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
       sub.textContent=err.message || 'Could not analyze the screen.';
       setStage(STAGES.ERROR, 'detection failed');
       document.getElementById('redetectBtn').classList.remove('hidden');
-      addAssistantMessage(`Detection failed: ${err.message || 'Unknown error.'} Try again, or click Re-detect.`);
+
+      let msg;
+      if (err.fatal) {
+        msg = `Detection failed: ${err.message}`;
+        if (/api[ _-]?key/i.test(err.message)) {
+          toggleModal(true);
+        }
+      } else {
+        msg = `Detection failed: ${err.message || 'Unknown error.'} Try again, or click Re-detect.`;
+      }
+      addAssistantMessage(msg);
     }
   }
 
