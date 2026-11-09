@@ -498,7 +498,6 @@
   let isDrawMode = false, currentDrawTool = 'pen', currentDrawColor = '#ec4899', isDrawing = false, drawCtx = null;
   let detectedUrl = null;
   let detectedTitle = null;
-  let viewSourceIsVideo = false; // true when showing live screen share, false when static/browser
 
   const STAGES = { IDLE:'idle', SHARING:'sharing', DETECTING:'detecting', DETECTED:'detected', LOGIN:'login', AGENT:'agent', DONE:'done', ERROR:'error' };
   let currentStage = STAGES.IDLE;
@@ -639,6 +638,7 @@
   function setupDrawCanvas() {
     const canvas = document.getElementById('drawCanvas');
     drawCtx = canvas.getContext('2d');
+    resizeDrawCanvas();
     let lastX=0, lastY=0;
     function getPos(e){ const r=canvas.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top}; }
     function start(e){ if(!isDrawMode)return; if(e.type==='touchstart')e.preventDefault(); isDrawing=true; const p=getPos(e); lastX=p.x; lastY=p.y; }
@@ -701,7 +701,6 @@
     const video = document.getElementById('screenVideo');
     video.srcObject = screenStream;
     video.classList.remove('hidden');
-    viewSourceIsVideo = true;
     setBrowserView(false);
     document.getElementById('screenImage').classList.add('hidden');
     document.getElementById('emptyViewportPrompt').classList.add('hidden');
@@ -715,11 +714,9 @@
     return true;
   }
   function stopScreenCapture() {
-    const wasVideo = viewSourceIsVideo;
     if (screenStream) { screenStream.getTracks().forEach(t=>t.stop()); screenStream=null; }
     document.getElementById('screenVideo').classList.add('hidden');
     document.getElementById('scanOverlay').classList.add('hidden');
-    viewSourceIsVideo = false;
     // Only reset to the landing view if there is no static image/browser view to fall back to
     const img = document.getElementById('screenImage');
     if (img.classList.contains('hidden') || !img.src) {
@@ -925,7 +922,6 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     // Clear any live stream without going back to the landing page
     if (screenStream) { screenStream.getTracks().forEach(t=>t.stop()); screenStream=null; }
     document.getElementById('screenVideo').classList.add('hidden');
-    viewSourceIsVideo = false;
     setBrowserView(false);
 
     const img=document.getElementById('screenImage'); img.src=dataUrl; img.classList.remove('hidden');
@@ -1024,9 +1020,9 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     const cx=Math.round(nx*sw),cy=Math.round(ny*sh),cw=Math.round(nw*sw),ch=Math.round(nh*sh);
     const cc=document.createElement('canvas'); cc.width=cw; cc.height=ch; const ctx=cc.getContext('2d');
     ctx.drawImage(el,cx,cy,cw,ch,0,0,cw,ch);
-    mergeDrawing(ctx,sw,cx,cy,cw,ch,cw,ch); clearDrawCanvas();
+    mergeDrawing(ctx,cw,ch); clearDrawCanvas();
     // For video capture, stop it and show the cropped still
-    if(videoShown){ if(screenStream){screenStream.getTracks().forEach(t=>t.stop());screenStream=null;} document.getElementById('screenVideo').classList.add('hidden'); viewSourceIsVideo=false; }
+    if(videoShown){ if(screenStream){screenStream.getTracks().forEach(t=>t.stop());screenStream=null;} document.getElementById('screenVideo').classList.add('hidden'); }
     i.src=cc.toDataURL('image/png'); i.classList.remove('hidden');
     document.getElementById('resetCropBtn').classList.remove('hidden');
     document.getElementById('captureSourceInfo').innerHTML='<i class="fa-solid fa-crop-simple text-indigo-400 text-[10px]"></i> Cropped selection';
@@ -1038,11 +1034,13 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     fullSourceImage=null; fullSourceImageName=null;
     document.getElementById('resetCropBtn').classList.add('hidden');
   }
-  function mergeDrawing(ctx,sw,sx,sy,sw_,sh_,dw,dh){
+  function mergeDrawing(ctx,dw,dh){
+    // Burn the draw-canvas annotations onto the captured frame so they line up
+    // exactly with the visible (possibly letterboxed/downscaled) image.
     const dc=document.getElementById('drawCanvas');
     if(!dc||dc.classList.contains('hidden')||!dc.width)return;
-    const r=getDisplayedImageRect(); const k=r.width/sw;
-    ctx.drawImage(dc,r.left+sx*k,r.top+sy*k,sw_*k,sh_*k,0,0,dw,dh);
+    const r=getDisplayedImageRect();
+    ctx.drawImage(dc,r.left,r.top,r.width,r.height,0,0,dw,dh);
   }
 
   /* ========================= FRAME CAPTURE & CHAT ========================= */
@@ -1057,7 +1055,7 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     const k=Math.min(1,1280/Math.max(w,h));
     const c=document.createElement('canvas'); c.width=Math.round(w*k); c.height=Math.round(h*k);
     const ctx=c.getContext('2d'); ctx.drawImage(el,0,0,c.width,c.height);
-    mergeDrawing(ctx,w,0,0,w,h,c.width,c.height);
+    mergeDrawing(ctx,c.width,c.height);
     return c.toDataURL('image/jpeg',0.78).split(',')[1];
   }
 
@@ -1293,6 +1291,7 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     const sel=document.getElementById('modelSelect');
     sel.innerHTML='<option value="">Auto (fastest)</option>'+MODEL_FALLBACK_CHAIN.map(m=>`<option value="${m}">${m}</option>`).join('');
     sel.value=lockedModel||''; preferredModel=lockedModel;
+    sel.onchange=onModelSelect;
     document.getElementById('modelBadge').textContent=lockedModel||'auto';
     const input=document.getElementById('userPromptInput');
     input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,96)+'px';});
@@ -1300,6 +1299,9 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     document.getElementById('browserServerInput').addEventListener('keydown',e=>{if(e.key==='Enter')saveApiKey();});
     window.addEventListener('keydown',e=>{if(e.key==='Escape'){toggleModal(false);toggleDrawMode(false);toggleCropMode(false);}});
     window.addEventListener('beforeunload',()=>window.speechSynthesis&&window.speechSynthesis.cancel());
+    window.addEventListener('unhandledrejection',e=>{
+      console.error('ScreenEdit: unhandled promise rejection',e.reason);
+    });
   }
   function toggleContinuousVoice(){
     if(!speechRecognition&&!isContinuousVoice){addAssistantMessage('Voice input requires Chrome, Edge, or Safari.');return;}
@@ -1519,10 +1521,8 @@ Rules:
       addAssistantMessage(`🧭 I can see the site, but my AI browser isn't running.\n\nTo let me edit live:\n1. Open a terminal in this project folder\n2. Run <code class="md-code">npm install</code> (once)\n3. Run <code class="md-code">npm run install-browser</code> (once, downloads Chromium)\n4. Run <code class="md-code">npm start</code>\n5. Open <code class="md-code">http://localhost:3000</code> (if you aren't already there)\n\nOnce that's running, send your edit request again.`);
       return;
     }
-    pendingEditGoal = goal;
     await startBrowserAgent(goal, url);
   }
-  let pendingEditGoal = null;
 
   function showLoginBanner(message) {
     loginRequested=true;
