@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ScreenEdit AI — Edit any website just by sharing your screen</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='50%25' stop-color='%238b5cf6'/%3E%3Cstop offset='100%25' stop-color='%23ec4899'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='22' fill='url(%23g)'/%3E%3Cpath d='M30 55 L45 67 L70 35' stroke='white' stroke-width='9' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='50%25' stop-color='%238b5cf6'/%3E%3Cstop offset='100%25' stop-color='%23ec4899'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='22' fill='url(%23g)'/%3E%3Cpath d='M30 55 L45 67 L70 35' stroke='white' stroke-width='9' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3e">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -18,11 +18,21 @@
             'gradient-shift': 'gradientShift 8s ease infinite',
             'float-slow': 'float 6s ease-in-out infinite',
             'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
+            'ping-large': 'pingLarge 3s cubic-bezier(0, 0, 0.2, 1) infinite',
+            'slide-up': 'slideUp 0.4s ease-out',
+            'fade-in': 'fadeIn 0.3s ease-out',
+            'scale-in': 'scaleIn 0.2s ease-out',
+            'shake': 'shake 0.4s ease-in-out',
           },
           keyframes: {
             gradientShift: { '0%,100%':{'background-position':'0% 50%'},'50%':{'background-position':'100% 50%'} },
             float: { '0%,100%':{transform:'translateY(0)'}, '50%':{transform:'translateY(-8px)'} },
             pulseGlow: { '0%,100%':{'box-shadow':'0 0 20px rgba(99,102,241,0.4)'}, '50%':{'box-shadow':'0 0 40px rgba(99,102,241,0.7)'} },
+            pingLarge: { '75%, 100%': { transform: 'scale(2)', opacity: '0' } },
+            slideUp: { '0%': { transform: 'translateY(20px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+            fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+            scaleIn: { '0%': { transform: 'scale(0.95)', opacity: '0' }, '100%': { transform: 'scale(1)', opacity: '1' } },
+            shake: { '0%, 100%': { transform: 'translateX(0)' }, '10% 30% 50% 70%': { transform: 'translateX(-4px)' }, '20% 40% 60% 80%': { transform: 'translateX(4px)' } },
           }
         }
       }
@@ -31,7 +41,7 @@
   <style>
     :root { color-scheme: dark; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: rgba(15,23,42,0.4); }
+    ::-webkit-scrollbar-track { background: rgba(15,23,42,0.3); }
     ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.45); border-radius: 9999px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(139,92,246,0.75); }
     * { box-sizing: border-box; }
@@ -44,11 +54,16 @@
       animation: gradientShift 6s ease infinite;
     }
     .glass {
-      background: rgba(15,23,42,0.6);
-      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-      border: 1px solid rgba(99,102,241,0.15);
+      background: rgba(15,23,42,0.65);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(99,102,241,0.18);
     }
-    .hero-glow { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(99,102,241,0.22), transparent 70%); z-index: 0; }
+    .glass-panel {
+      background: rgba(15,23,42,0.55);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(99,102,241,0.12);
+    }
+    .hero-glow { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(99,102,241,0.2), transparent 70%); z-index: 0; }
     .pulse-ring {
       position: absolute; border-radius: 9999px;
       border: 3px solid rgba(236,72,153,0.75);
@@ -74,8 +89,7 @@
       position: absolute; transform: translateX(-50%);
       background:#ec4899;color:#fff;font-size:10px;font-weight:700;
       padding:3px 8px;border-radius:6px;white-space:nowrap;pointer-events:none;
-      z-index: 20;
-      box-shadow: 0 4px 12px rgba(236,72,153,0.4);
+      z-index: 20; box-shadow: 0 4px 12px rgba(236,72,153,0.4);
     }
     .step-line { position:relative; padding-left:32px; }
     .step-line::before {
@@ -107,6 +121,16 @@
     }
     .btn-primary:hover { background-position:100% 0; transform:translateY(-1px); box-shadow:0 10px 30px rgba(139,92,246,0.45); }
     .btn-primary:active { transform: translateY(0); }
+    .btn-success {
+      background: linear-gradient(135deg,#10b981 0%,#34d399 100%);
+      background-size:200% 200%; transition: all .25s ease; color:#fff; font-weight:600;
+    }
+    .btn-success:hover { background-position:100% 0; transform:translateY(-1px); box-shadow:0 10px 30px rgba(16,185,129,0.45); }
+    .btn-outline {
+      background: transparent; border: 1px solid rgba(99,102,241,0.3); color:#e2e8f0;
+      transition: all .25s ease;
+    }
+    .btn-outline:hover { background: rgba(99,102,241,0.15); border-color: #818cf8; }
     .scanline {
       position:absolute; inset:0; overflow:hidden; pointer-events:none;
       background: linear-gradient(to bottom, transparent 0%, rgba(99,102,241,0.10) 50%, transparent 100%);
@@ -120,6 +144,18 @@
     .kbd { display:inline-block; padding:1px 5px; border-radius:4px; background:rgba(30,41,59,.8); border:1px solid rgba(71,85,105,.6); font-family:'JetBrains Mono',monospace; font-size:10px; color:#cbd5e1; }
     .viewport-browser-clickable { cursor: pointer; }
     .viewport-browser-clickable:hover { filter: brightness(1.05); }
+    .status-indicator { display:flex; align-items:center; gap:8px; }
+    .status-dot { width:8px; height:8px; border-radius:50%; }
+    .status-online { background:#10b981; box-shadow:0 0 8px #10b981; }
+    .status-offline { background:#ef4444; box-shadow:0 0 8px #ef4444; }
+    .status-warning { background:#f59e0b; box-shadow:0 0 8px #f59e0b; }
+    .status-unknown { background:#6b7280; box-shadow:0 0 8px #6b7280; }
+    .card-hover { transition: all .2s ease; }
+    .card-hover:hover { transform: translateY(-2px); border-color: rgba(99,102,241,0.4); }
+    .skeleton { background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%); background-size: 200% 100%; animation: skeleton 1.5s infinite; border-radius: 4px; }
+    @keyframes skeleton { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .shake-anim { animation: shake 0.4s ease-in-out; }
+    .glass-modal { background: rgba(15,23,42,0.9); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
   </style>
 </head>
 <body class="h-full flex flex-col font-sans overflow-hidden bg-slate-950 text-slate-100">
@@ -149,7 +185,7 @@
           <span id="stageText" class="text-slate-300">Idle</span>
         </div>
 
-        <select id="modelSelect" title="Model" class="px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/70 text-slate-300 text-xs font-mono max-w-[170px] focus:outline-none focus:border-indigo-500"></select>
+        <select id="modelSelect" title="Model" class="px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/70 text-slate-300 text-xs font-mono max-w-[170px] focus:outline-none focus:border-indigo-500 transition-all"></select>
 
         <button onclick="toggleModal(true)" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800/70 hover:bg-slate-700 text-slate-300 text-xs font-medium transition flex items-center gap-1.5">
           <i class="fa-solid fa-key text-amber-400"></i>
@@ -209,7 +245,7 @@
       </div>
 
       <!-- Detection banner -->
-      <div id="detectBanner" class="hidden px-3 py-2.5 border-b border-indigo-500/20 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 text-xs flex items-center justify-between gap-2 z-20">
+      <div id="detectBanner" class="hidden px-3 py-2.5 border-b border-indigo-500/20 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 text-xs flex items-center justify-between gap-2 z-20 animate-fade-in">
         <div class="flex items-center gap-2 min-w-0">
           <div class="relative w-6 h-6 shrink-0">
             <div class="absolute inset-0 rounded-full border-2 border-indigo-400/30"></div>
@@ -228,7 +264,7 @@
       </div>
 
       <!-- Login banner -->
-      <div id="loginBanner" class="hidden px-3 py-3 border-b border-amber-500/30 bg-amber-500/5 text-xs z-20">
+      <div id="loginBanner" class="hidden px-3 py-3 border-b border-amber-500/30 bg-amber-500/5 text-xs z-20 animate-slide-up">
         <div class="flex items-start gap-3">
           <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 text-amber-400">
             <i class="fa-solid fa-right-to-bracket"></i>
@@ -247,7 +283,7 @@
       </div>
 
       <!-- Agent progress -->
-      <div id="agentProgressBar" class="hidden px-3 py-2 border-b border-cyan-500/20 bg-cyan-500/5 text-xs z-20 flex items-center gap-2">
+      <div id="agentProgressBar" class="hidden px-3 py-2 border-b border-cyan-500/20 bg-cyan-500/5 text-xs z-20 flex items-center gap-2 animate-slide-up">
         <i class="fa-solid fa-robot text-cyan-400 animate-pulse shrink-0"></i>
         <div id="agentProgressText" class="flex-1 text-slate-200 font-medium truncate">Preparing…</div>
         <button onclick="stopBrowserAgent()" class="px-2 py-1 rounded border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-[11px] whitespace-nowrap">
@@ -256,7 +292,7 @@
       </div>
 
       <!-- Drawing sub-bar -->
-      <div id="drawToolbar" class="hidden p-2 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between px-4 z-20 text-xs">
+      <div id="drawToolbar" class="hidden p-2 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between px-4 z-20 text-xs animate-slide-up">
         <div class="flex items-center gap-3">
           <span class="text-slate-400 font-medium">Draw:</span>
           <button onclick="setDrawTool('pen')" id="toolPen" class="px-2.5 py-1 rounded bg-indigo-600 text-white flex items-center gap-1"><i class="fa-solid fa-pen"></i> Pen</button>
@@ -279,7 +315,7 @@
         <img id="screenImage" class="hidden max-w-full max-h-full rounded-xl object-contain shadow-2xl border border-slate-800/80 z-[5]" src="" alt="Screen">
 
         <!-- Empty / onboarding -->
-        <div id="emptyViewportPrompt" class="text-center p-8 rounded-3xl glass max-w-lg mx-4 relative z-[2]">
+        <div id="emptyViewportPrompt" class="text-center p-8 rounded-3xl glass max-w-lg mx-4 relative z-[2] animate-fade-in">
           <div class="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-5 shadow-2xl shadow-purple-500/30 animate-pulse-glow">
             <i class="fa-solid fa-wand-magic-sparkles text-white text-2xl"></i>
           </div>
@@ -288,7 +324,7 @@
           </h2>
           <p class="text-slate-400 text-sm leading-relaxed mb-6">
             Share your screen showing the website you want to change. I'll detect it automatically, ask you to sign in if needed, then edit it for you live.
-            <span class="text-slate-500">No URL bar. No plugins.</span>
+            <span class="text-slate-500 block mt-2">No URL bar. No plugins.</span>
           </p>
 
           <button onclick="startShareAndDetect()" class="btn-primary w-full sm:w-auto px-6 py-3 rounded-xl text-sm shadow-xl flex items-center gap-2 justify-center mx-auto mb-5">
@@ -351,7 +387,7 @@
             <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
               <i class="fa-solid fa-robot text-white text-sm"></i>
             </div>
-            <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-slate-900"></span>
+            <span id="geminiStatusDot" class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full status-dot status-unknown"></span>
           </div>
           <div>
             <div class="font-bold text-xs text-slate-100 flex items-center gap-1.5">
@@ -377,7 +413,7 @@
       </div>
 
       <!-- Timeline -->
-      <div id="stepTimeline" class="hidden px-4 py-3 border-b border-slate-800/60 bg-slate-950/40">
+      <div id="stepTimeline" class="hidden px-4 py-3 border-b border-slate-800/60 bg-slate-950/40 animate-slide-up">
         <div class="space-y-3 text-xs" id="stepList">
           <div class="step-line" data-step="share"><div class="step-bullet step-pending"><i class="fa-solid fa-check text-[9px]"></i></div><div class="text-slate-200 font-medium">Screen shared</div><div class="text-[10px] text-slate-500">You shared a browser tab</div></div>
           <div class="step-line" data-step="detect"><div class="step-bullet step-pending"><i class="fa-solid fa-magnifying-glass text-[9px]"></i></div><div class="text-slate-200 font-medium">Website detected</div><div class="text-[10px] text-slate-500">I identify the URL & page</div></div>
@@ -407,11 +443,11 @@
 
       <!-- Chat -->
       <div id="chatMessages" class="select-text flex-1 p-3 overflow-y-auto space-y-3 font-sans text-xs min-h-0">
-        <div class="flex items-start gap-2.5">
+        <div class="flex items-start gap-2.5 animate-slide-up">
           <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-lg">
             <i class="fa-solid fa-robot"></i>
           </div>
-          <div class="bg-slate-800/70 border border-slate-700/60 text-slate-200 rounded-2xl rounded-tl-none p-3 leading-relaxed shadow-sm">
+          <div class="bg-slate-800/70 border border-slate-700/60 text-slate-200 rounded-2xl rounded-tl-none p-3 leading-relaxed shadow-sm max-w-[85%]">
             <p class="mb-2"><strong class="text-white">Hey! I'm here to edit websites with you.</strong></p>
             <p class="text-slate-300 mb-2">Click <span class="text-indigo-300 font-semibold">"Share your screen"</span>, show me the site you want to change, and tell me what to do. I'll:</p>
             <ol class="text-slate-400 space-y-1 ml-4 list-decimal">
@@ -438,15 +474,15 @@
         </div>
         <div class="flex items-center justify-between mt-1.5 px-1 gap-2">
           <span class="text-[10px] text-slate-500 truncate"><span class="kbd">Enter</span> send · <span class="kbd">Shift</span>+<span class="kbd">Enter</span> new line</span>
-          <span id="serverStatusPill" class="text-[10px] text-slate-500 flex items-center gap-1 shrink-0"><span class="w-1.5 h-1.5 rounded-full bg-slate-600" id="serverDot"></span><span id="serverStatusText">checking…</span></span>
+          <span id="serverStatusPill" class="text-[10px] text-slate-500 flex items-center gap-1 shrink-0"><span class="status-dot status-unknown" id="serverDot"></span><span id="serverStatusText">checking…</span></span>
         </div>
       </form>
     </aside>
   </div>
 
   <!-- API Key Modal -->
-  <div id="apiKeyModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
-    <div class="glass rounded-2xl max-w-md w-full p-6 shadow-2xl">
+  <div id="apiKeyModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="glass-modal rounded-2xl max-w-md w-full p-6 shadow-2xl animate-scale-in">
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-2">
           <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
@@ -467,9 +503,9 @@
           <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 font-mono">
         </div>
         <div>
-          <label class="block text-[11px] text-slate-400 mb-1.5 font-medium">Browser editor server</label>
+          <label class="block text-[11px] text-slate-400 mb-1.5 font-medium">Browser editor server <span class="text-slate-600 font-normal">(for live editing only)</span></label>
           <input type="text" id="browserServerInput" placeholder="http://localhost:3000" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-mono">
-          <p class="text-[10px] text-slate-500 mt-1.5 leading-relaxed">This page is hosted on GitHub Pages. Run <code class="md-code\">npm start</code> on your computer to start the local AI browser server, then enter <code class="md-code\">http://localhost:3000</code> here so the app can control the browser for live editing.</p>
+          <p class="text-[10px] text-slate-500 mt-1.5 leading-relaxed">Leave blank if you don't need live browser editing. If you do, run <code class="md-code">npm start</code> on your computer and enter <code class="md-code">http://localhost:3000</code>.</p>
         </div>
       </div>
 
@@ -498,6 +534,10 @@
   let isDrawMode = false, currentDrawTool = 'pen', currentDrawColor = '#ec4899', isDrawing = false, drawCtx = null;
   let detectedUrl = null;
   let detectedTitle = null;
+  let agentRun = null;
+  let agentServerOnline = false;
+  let viewingBrowser = false;
+  let loginRequested = false;
 
   const STAGES = { IDLE:'idle', SHARING:'sharing', DETECTING:'detecting', DETECTED:'detected', LOGIN:'login', AGENT:'agent', DONE:'done', ERROR:'error' };
   let currentStage = STAGES.IDLE;
@@ -517,14 +557,7 @@
   const MODEL_RETRY_ROUNDS = 2;
   const MAX_RETRY_WAIT_MS = 12000;
 
-  const SYSTEM_INSTRUCTION = `You are ScreenEdit AI, a friendly, capable visual assistant that edits websites by watching the user's screen and controlling a separate browser for them.
-- Be warm, concise, and action-oriented.
-- When the user shares their screen, identify what website they're on. Extract the URL from the browser's address bar if visible; if not, infer it from logos, branding, and content.
-- When asked where to click, return normalized coordinates [ymin, xmin, ymax, xmax] in the 0-1000 grid.
-- Keep replies under ~90 words unless asked for more.
-- If you detect a login wall, tell the user clearly.
-- Never fabricate credentials or personal data.
-- Use Markdown (bold, inline code) sparingly for emphasis.`;
+  const SYSTEM_INSTRUCTION = 'You are ScreenEdit AI, a friendly, capable visual assistant that edits websites by watching the user\'s screen and controlling a separate browser for them.\n- Be warm, concise, and action-oriented.\n- When the user shares their screen, identify what website they\'re on. Extract the URL from the browser\'s address bar if visible; if not, infer it from logos, branding, and content.\n- When asked where to click, return normalized coordinates [ymin, xmin, ymax, xmax] in the 0-1000 grid.\n- Keep replies under ~90 words unless asked for more.\n- If you detect a login wall, tell the user clearly.\n- Never fabricate credentials or personal data.\n- Use Markdown (bold, inline code) sparingly for emphasis.';
 
   window.addEventListener('DOMContentLoaded', init);
 
@@ -557,7 +590,7 @@
     };
     const s = stages[stage] || stages.idle;
     dot.className = 'w-2 h-2 rounded-full ' + s.dot;
-    text.textContent = detail ? `${s.label} · ${detail}` : s.label;
+    text.textContent = detail ? s.label + ' · ' + detail : s.label;
 
     const timeline = document.getElementById('stepTimeline');
     const order = ['share','detect','login','edit'];
@@ -571,7 +604,7 @@
     timeline.classList.toggle('hidden', !showTimeline);
     if (showTimeline) {
       order.forEach(k => {
-        const li = timeline.querySelector(`[data-step="${k}"]`);
+        const li = timeline.querySelector('[data-step="' + k + '"]');
         if (!li) return;
         const bullet = li.querySelector('.step-bullet');
         let cls = 'step-bullet ';
@@ -586,6 +619,8 @@
   /* ========================= MODAL ========================= */
   function updateApiKeyUI() {
     document.getElementById('apiKeyBtnText').textContent = apiKey ? 'Key Configured' : 'Set API Key';
+    const dot = document.getElementById('geminiStatusDot');
+    dot.className = 'w-3 h-3 rounded-full status-dot ' + (apiKey ? 'status-unknown' : 'status-offline');
   }
   function toggleModal(show) {
     document.getElementById('apiKeyModal').classList.toggle('hidden', !show);
@@ -650,7 +685,7 @@
         const h=currentDrawColor.replace('#','');
         const hh=h.length===3?h.split('').map(c=>c+c).join(''):h;
         const r=parseInt(hh.substr(0,2),16)||250, g=parseInt(hh.substr(2,2),16)||204, b=parseInt(hh.substr(4,2),16)||21;
-        drawCtx.strokeStyle=`rgba(${r},${g},${b},0.18)`; drawCtx.lineWidth=26; drawCtx.lineCap='square'; drawCtx.lineJoin='miter';
+        drawCtx.strokeStyle='rgba('+r+','+g+','+b+',0.18)'; drawCtx.lineWidth=26; drawCtx.lineCap='square'; drawCtx.lineJoin='miter';
       } else {
         drawCtx.strokeStyle=currentDrawColor; drawCtx.lineWidth=4; drawCtx.lineCap='round'; drawCtx.lineJoin='round';
       }
@@ -717,7 +752,6 @@
     if (screenStream) { screenStream.getTracks().forEach(t=>t.stop()); screenStream=null; }
     document.getElementById('screenVideo').classList.add('hidden');
     document.getElementById('scanOverlay').classList.add('hidden');
-    // Only reset to the landing view if there is no static image/browser view to fall back to
     const img = document.getElementById('screenImage');
     if (img.classList.contains('hidden') || !img.src) {
       document.getElementById('emptyViewportPrompt').classList.remove('hidden');
@@ -732,7 +766,6 @@
       detectedUrl = null; detectedTitle = null;
       setStage(STAGES.IDLE);
     } else {
-      // Fell back to last browser/static image
       document.getElementById('heroStartBtn').classList.remove('hidden');
       document.getElementById('stopShareBtn').classList.add('hidden');
       document.getElementById('captureSourceInfo').innerHTML = '<i class="fa-solid fa-image text-cyan-400 text-[10px]"></i> Paused (live stream ended)';
@@ -789,18 +822,7 @@
     title.textContent='Scanning your screen for a website…';
     sub.textContent='Looking at the URL bar, logos, and page content.';
 
-    const prompt = `Look at this screen carefully.
-1) Is a web browser showing a website? If not (e.g. desktop, app, code editor, video), reply NO_BROWSER on the URL line.
-2) If yes: extract the FULL URL from the browser address bar (starts with http:// or https://). If the address bar isn't readable, infer the URL from logos/branding/content and mark it as inferred.
-3) State the page title shown on the tab or main heading.
-4) One-line summary of what the page is.
-5) Does the page require sign-in right now (visible login form, sign-in wall, paywall, "sign in to continue")? LOGIN_REQUIRED or NO_LOGIN.
-
-Reply with EXACTLY this 4-line format, nothing else:
-URL: <full url, UNKNOWN, or NO_BROWSER>
-TITLE: <page title>
-SUMMARY: <one line>
-LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
+    const prompt = 'Look at this screen carefully.\n1) Is a web browser showing a website? If not (e.g. desktop, app, code editor, video), reply NO_BROWSER on the URL line.\n2) If yes: extract the FULL URL from the browser address bar (starts with http:// or https://). If the address bar isn\'t readable, infer the URL from logos/branding/content and mark it as inferred.\n3) State the page title shown on the tab or main heading.\n4) One-line summary of what the page is.\n5) Does the page require sign-in right now (visible login form, sign-in wall, paywall, "sign in to continue")? LOGIN_REQUIRED or NO_LOGIN.\n\nReply with EXACTLY this 4-line format, nothing else:\nURL: <full url, UNKNOWN, or NO_BROWSER>\nTITLE: <page title>\nSUMMARY: <one line>\nLOGIN: LOGIN_REQUIRED or NO_LOGIN';
 
     if (!apiKey) {
       toggleModal(true);
@@ -844,31 +866,31 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
       detectedTitle = pageTitle;
 
       setStage(STAGES.DETECTED);
-      title.innerHTML=`<i class="fa-solid fa-check text-emerald-400 mr-1"></i>Detected: <span class="text-white">${escapeHtml(pageTitle)}</span>`;
+      title.innerHTML='<i class="fa-solid fa-check text-emerald-400 mr-1"></i>Detected: <span class="text-white">' + escapeHtml(pageTitle) + '</span>';
       sub.textContent = summary || 'Website identified.';
 
       if (detectedUrl) {
         pill.classList.remove('hidden'); pill.classList.add('flex');
         const display = detectedUrl.replace(/^https?:\/\//,'').replace(/\/$/,'');
         pillText.textContent = display;
-        pill.title = `Open ${detectedUrl} in the AI browser? (hold Ctrl for new tab)`;
+        pill.title = 'Open ' + detectedUrl + ' in the AI browser? (hold Ctrl for new tab)';
         pill.onclick = (e) => {
           e.preventDefault(); e.stopPropagation();
-          const goal = document.getElementById('userPromptInput').value.trim() || `Navigate to ${detectedUrl} and wait for the page to fully load. Then tell me what you see.`;
+          const goal = document.getElementById('userPromptInput').value.trim() || 'Navigate to ' + detectedUrl + ' and wait for the page to fully load. Then tell me what you see.';
           document.getElementById('userPromptInput').value='';
           launchEditFlow(goal, detectedUrl);
         };
       }
       document.getElementById('redetectBtn').classList.remove('hidden');
 
-      let msg = `✅ I see <strong>${escapeHtml(pageTitle)}</strong>`;
-      if (detectedUrl) msg += ` <span class="text-cyan-300 font-mono text-[11px]">(${escapeHtml(detectedUrl)})</span>`;
+      let msg = '✅ I see <strong>' + escapeHtml(pageTitle) + '</strong>';
+      if (detectedUrl) msg += ' <span class="text-cyan-300 font-mono text-[11px]">(' + escapeHtml(detectedUrl) + ')</span>';
       msg += '.';
       if (summary) msg += ' ' + escapeHtml(summary);
-      msg += '\n\nJust tell me what you want changed (for example, <em>"Make the main headline punchier and change the CTA button to coral"</em>) and I\'ll open it in my AI browser and edit it live.';
-      if (loginRequired) msg += '\n\n🔐 It looks like this page needs signing in — I\'ll pause and ask you to sign in before editing.';
+      msg += '\n\nJust tell me what you want changed (for example, "Make the main headline punchier and change the CTA button to coral") and I will open it in my AI browser and edit it live.';
+      if (loginRequired) msg += '\n\n🔐 It looks like this page needs signing in — I will pause and ask you to sign in before editing.';
       addAssistantMessage(msg);
-      speakText(`I see ${pageTitle}. Tell me what to edit.`);
+      speakText('I see ' + pageTitle + '. Tell me what to edit.');
 
       setTimeout(()=>{
         const i=document.getElementById('userPromptInput');
@@ -887,12 +909,12 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
 
       let msg;
       if (err.fatal) {
-        msg = `Detection failed: ${err.message}`;
+        msg = 'Detection failed: ' + err.message;
         if (/api[ _-]?key/i.test(err.message)) {
           toggleModal(true);
         }
       } else {
-        msg = `Detection failed: ${err.message || 'Unknown error.'} Try again, or click Re-detect.`;
+        msg = 'Detection failed: ' + (err.message || 'Unknown error.') + ' Try again, or click Re-detect.';
       }
       addAssistantMessage(msg);
     }
@@ -906,12 +928,10 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
   }
   function useSampleScreen(){
     const c=document.createElement('canvas'); c.width=1280; c.height=780; const x=c.getContext('2d');
-    // Browser chrome
     x.fillStyle='#1e293b'; x.fillRect(0,0,1280,72);
     x.fillStyle='#0f172a'; x.beginPath(); x.arc(30,36,8,0,Math.PI*2); x.arc(54,36,8,0,Math.PI*2); x.arc(78,36,8,0,Math.PI*2); x.fill();
     x.fillStyle='#334155'; x.roundRect ? x.roundRect(120,20,820,36,8) : x.fillRect(120,20,820,36);
     if (x.roundRect) { x.fill(); x.fillStyle='#94a3b8'; x.font='14px ui-sans-serif, sans-serif'; x.fillText('🔒  https://www.acmesaas.com/dashboard',140,43); }
-    // Page
     x.fillStyle='#0b1220'; x.fillRect(0,72,1280,708);
     x.fillStyle='#6366f1'; x.fillRect(0,72,1280,4);
     x.fillStyle='#fff'; x.font='bold 56px ui-sans-serif, sans-serif'; x.fillText('Ship faster with Acme.',80,250);
@@ -932,10 +952,9 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     document.getElementById('detectIcon').className='fa-solid fa-check text-emerald-300 text-[10px] absolute inset-0 flex items-center justify-center';
     document.getElementById('redetectBtn').classList.remove('hidden');
     setStage(STAGES.DETECTED);
-    addAssistantMessage('✅ Loaded the demo screenshot (a fake SaaS landing page at <span class="font-mono text-cyan-300">acmesaas.com</span>). Try asking me to edit it, e.g. <em>"Change the headline to something about shipping 10× faster"</em>.\n\n(Note: the demo uses a fake URL, so live editing won\'t work, but all the vision/chat features will.)');
+    addAssistantMessage('✅ Loaded the demo screenshot (a fake SaaS landing page at acmesaas.com). Try asking me to edit it, e.g. "Change the headline to something about shipping 10× faster".\n\n(Note: the demo uses a fake URL, so live editing won\'t work, but all the vision/chat features will.)');
   }
   function displayCapturedImage(dataUrl, sourceName) {
-    // Clear any live stream without going back to the landing page
     if (screenStream) { screenStream.getTracks().forEach(t=>t.stop()); screenStream=null; }
     document.getElementById('screenVideo').classList.add('hidden');
     setBrowserView(false);
@@ -945,12 +964,11 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     document.getElementById('heroStartBtn').classList.add('hidden');
     document.getElementById('stopShareBtn').classList.add('hidden');
     document.getElementById('manualTools').classList.remove('hidden');
-    document.getElementById('captureSourceInfo').innerHTML = `<i class="fa-solid fa-image text-cyan-400 text-[10px]"></i> ${escapeHtml(sourceName||'Image')}`;
+    document.getElementById('captureSourceInfo').innerHTML = '<i class="fa-solid fa-image text-cyan-400 text-[10px]"></i> ' + escapeHtml(sourceName||'Image');
     clearBoundingBoxes(); clearDrawCanvas();
     setStage(STAGES.SHARING);
   }
   function afterImageLoaded() {
-    // After an image is loaded (upload/paste), auto-detect
     setTimeout(()=>{ document.getElementById('detectBanner').classList.remove('hidden'); detectWebsiteAutomaticallyFromImage(); }, 400);
   }
   async function detectWebsiteAutomaticallyFromImage() {
@@ -1037,7 +1055,6 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     const cc=document.createElement('canvas'); cc.width=cw; cc.height=ch; const ctx=cc.getContext('2d');
     ctx.drawImage(el,cx,cy,cw,ch,0,0,cw,ch);
     mergeDrawing(ctx,cw,ch); clearDrawCanvas();
-    // For video capture, stop it and show the cropped still
     if(videoShown){ if(screenStream){screenStream.getTracks().forEach(t=>t.stop());screenStream=null;} document.getElementById('screenVideo').classList.add('hidden'); }
     i.src=cc.toDataURL('image/png'); i.classList.remove('hidden');
     document.getElementById('resetCropBtn').classList.remove('hidden');
@@ -1051,8 +1068,6 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     document.getElementById('resetCropBtn').classList.add('hidden');
   }
   function mergeDrawing(ctx,dw,dh){
-    // Burn the draw-canvas annotations onto the captured frame so they line up
-    // exactly with the visible (possibly letterboxed/downscaled) image.
     const dc=document.getElementById('drawCanvas');
     if(!dc||dc.classList.contains('hidden')||!dc.width)return;
     const r=getDisplayedImageRect();
@@ -1090,13 +1105,11 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     const L=c.left+box.xmin/1000*c.width, T=c.top+box.ymin/1000*c.height;
     const W=(box.xmax-box.xmin)/1000*c.width, H=(box.ymax-box.ymin)/1000*c.height;
     const cx=(L+W/2), cy=(T+H/2);
-    const cxPct=(cx/c.containerWidth)*100;
-    // clamp label inside viewport
     const labelTop = Math.max(4, T-22);
-    o.innerHTML=`<div class="target-box" style="left:${L}px;top:${T}px;width:${W}px;height:${H}px"></div>
-      <div class="pulse-ring" style="left:${cx}px;top:${cy}px;width:52px;height:52px"></div>
-      <div class="pulse-dot" style="left:${cx}px;top:${cy}px"></div>
-      <div class="target-label" style="left:${cx}px;top:${labelTop}px">${escapeHtml(label)}</div>`;
+    o.innerHTML='<div class="target-box" style="left:'+L+'px;top:'+T+'px;width:'+W+'px;height:'+H+'px"></div>'+
+      '<div class="pulse-ring" style="left:'+cx+'px;top:'+cy+'px;width:52px;height:52px"></div>'+
+      '<div class="pulse-dot" style="left:'+cx+'px;top:'+cy+'px"></div>'+
+      '<div class="target-label" style="left:'+cx+'px;top:'+labelTop+'px">'+escapeHtml(label)+'</div>';
   }
 
   const EDIT_TRIGGERS = /\b(edit|change|update|replace|add\s|remove|delete|fix|set to|write|rewrite|fill in|fill out|create|make it|turn this|improve|revise|modify|customi[sz]e|publish|post|upload|redesign|restyle)\b/i;
@@ -1154,8 +1167,13 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     if(loadingId)removeMessage(loadingId);
     if(aborted)return;
     if(reply===null){
-      if(!opts.silent||(lastError&&lastError.fatal))
-        addAssistantMessage(lastError?lastError.message:'Gemini is unavailable right now. Try again in a moment.');
+      if(!opts.silent||(lastError&&lastError.fatal)){
+        let msg=lastError?lastError.message:'Gemini is unavailable right now. Try again in a moment.';
+        if(lastError&&lastError.fatal&&/api[ _-]?key/i.test(lastError.message)){
+          toggleModal(true);
+        }
+        addAssistantMessage(msg);
+      }
       return;
     }
     if(opts.silent&&/^\s*OK\b/i.test(reply))return;
@@ -1168,11 +1186,11 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     if(bubble)bubble.innerHTML=formatMd(reply); else addAssistantMessage(reply);
     speakText(reply);
     const m=reply.match(COORD_RE);
-    if(m){ const [ymin,xmin,ymax,xmax]=m.slice(1).map(Number); if(xmax>xmin&&ymax>ymin&&Math.max(ymax,xmax)<=1000)renderClickTarget({ymin,xmin,ymax,xmax},'Click here'); }
+    if(m){ const [ymin,xmin,ymax,xmax]=m.slice(1).map(Number); if(xmax>xmin&&ymax>ymin&&Math.max(ymax,xmax)<=1000)renderClickTarget({ymin:xmin,xmin:ymin,ymax:xmax,xmin:xmin},'Click here'); }
   }
 
   async function callGeminiOnce(model,b64,userPrompt,signal,onChunk,onFirst){
-    const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
+    const url='https://generativelanguage.googleapis.com/v1beta/models/'+model+':streamGenerateContent?alt=sse';
     const payload={
       contents:[...conversationHistory,{role:'user',parts:[{inlineData:{mimeType:'image/jpeg',data:b64}},{text:userPrompt}]}],
       systemInstruction:{parts:[{text:SYSTEM_INSTRUCTION}]}
@@ -1201,7 +1219,7 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
       }
     }
     text=text.trim();
-    if(!text){const e=new Error(`(${model}) Empty response.`);e.transient=true;throw e;}
+    if(!text){const e=new Error('('+model+') Empty response.');e.transient=true;throw e;}
     return text;
   }
 
@@ -1209,8 +1227,8 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
   function parseRetryDelayMs(data){const d=(data&&data.error&&data.error.details)||[];const i=d.find(x=>x&&typeof x.retryDelay==='string');const s=i?parseFloat(i.retryDelay):NaN;return Number.isFinite(s)?Math.round(s*1000):0;}
   async function geminiHttpError(model,response){
     const data=await response.json().catch(()=>({}));
-    const st=response.status; const raw=(data.error&&data.error.message)||`Request failed (${st})`;
-    const e=new Error(`(${model}) ${raw}`); e.status=st; e.model=model; e.raw=raw;
+    const st=response.status; const raw=(data.error&&data.error.message)||'Request failed ('+st+')';
+    const e=new Error('('+model+') '+raw); e.status=st; e.model=model; e.raw=raw;
     if(st===401||((st===400||st===403)&&/api[ _-]?key/i.test(raw))){e.fatal=true;e.message='Your Gemini API key was rejected. Click "Set API Key" to update it.';}
     else if(st===404||/no longer (available|supported)|not (found|supported|available)|deprecated|limited to/i.test(raw)){e.dead=true;}
     else if([429,500,502,503,504].includes(st)){e.retryDelayMs=parseRetryDelayMs(data);e.transient=!(e.retryDelayMs>60000);}
@@ -1218,6 +1236,10 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
   }
   function sleep(ms,signal){return new Promise((res,rej)=>{if(signal&&signal.aborted)return rej(new DOMException('Aborted','AbortError'));const t=setTimeout(()=>{signal&&signal.removeEventListener('abort',onA);res();},ms);const onA=()=>{clearTimeout(t);rej(new DOMException('Aborted','AbortError'));};signal&&signal.addEventListener('abort',onA,{once:true});});}
   async function withModelFallback(task,{signal,rounds=MODEL_RETRY_ROUNDS,onWait}={}){
+    // Clear dead models so each request gets a fresh retry attempt.
+    // Models are still skipped within a single call if they fail, but
+    // the next request starts with a clean slate.
+    deadModels.clear();
     const errors=new Map();
     for(let r=0;r<rounds;r++){
       const first=lockedModel||preferredModel;
@@ -1234,7 +1256,7 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
         try{const res=await task(model);if(!lockedModel)preferredModel=model;return{result:res,model};}
         catch(err){
           if(err.name==='AbortError')throw err;
-          console.warn(`Model ${model} failed:`,err);
+          console.warn('Model '+model+' failed:',err);
           if(!err.model)err.model=model;
           errors.set(model,err);
           if(err.dead)deadModels.add(model);
@@ -1244,7 +1266,13 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
       }
     }
     const list=[...errors.values()];
-    if(!list.length)throw new Error('No Gemini model is available right now.');
+    if(!list.length){
+      const e=new Error(apiKey
+        ?'No Gemini model is available right now. Check your internet connection and try again.'
+        :'No Gemini model is available — please add your Gemini API key in Settings first.');
+      e.fatal=!apiKey;
+      throw e;
+    }
     const busy=list.every(e=>e.transient||e.dead)&&list.some(e=>e.transient);
     throw Object.assign(new Error(busy?'Gemini is overloaded right now — try again in a moment.':'No Gemini model could answer this request.'),{transient:busy});
   }
@@ -1254,7 +1282,7 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     const first=()=>{clearTimeout(timer);if(onFirst)onFirst();};
     try{return await callGeminiOnce(model,b64,prompt,ctl.signal,onChunk,first);}
     catch(e){
-      if(timedOut&&e.name==='AbortError'){const err=new Error(`(${model}) timed out after ${FIRST_BYTE_TIMEOUT_MS/1000}s`);err.transient=true;throw err;}
+      if(timedOut&&e.name==='AbortError'){const err=new Error('('+model+') timed out after '+(FIRST_BYTE_TIMEOUT_MS/1000)+'s');err.transient=true;throw err;}
       throw e;
     }finally{clearTimeout(timer);signal.removeEventListener('abort',relay);}
   }
@@ -1280,7 +1308,7 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
       if(['no-speech','aborted'].includes(e.error))return;
       if(isContinuousVoice)toggleContinuousVoice();
       const msgs={'not-allowed':'Microphone is blocked. Click the lock icon in your address bar to allow it.','service-not-allowed':'Speech recognition refused by the browser. Try Chrome or Edge.','audio-capture':'No microphone found.','network':'Voice needs an internet connection.'};
-      addAssistantMessage(msgs[e.error]||`Voice error: ${e.error}`);
+      addAssistantMessage(msgs[e.error]||'Voice error: '+e.error);
     };
     speechRecognition.onend=()=>{
       document.getElementById('singleMicIcon').className='fa-solid fa-microphone';
@@ -1305,7 +1333,7 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
       window.addEventListener('pointerdown',()=>{const u=new SpeechSynthesisUtterance(' ');u.volume=0;window.speechSynthesis.speak(u);},{once:true});
     }
     const sel=document.getElementById('modelSelect');
-    sel.innerHTML='<option value="">Auto (fastest)</option>'+MODEL_FALLBACK_CHAIN.map(m=>`<option value="${m}">${m}</option>`).join('');
+    sel.innerHTML='<option value="">Auto (fastest)</option>'+MODEL_FALLBACK_CHAIN.map(m=>'<option value="'+m+'">'+m+'</option>').join('');
     sel.value=lockedModel||''; preferredModel=lockedModel;
     sel.onchange=onModelSelect;
     document.getElementById('modelBadge').textContent=lockedModel||'auto';
@@ -1373,28 +1401,28 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
   /* ========================= CHAT UI ========================= */
   function addUserMessage(text){
     const c=document.getElementById('chatMessages'); const m=document.createElement('div'); m.className='flex justify-end';
-    m.innerHTML=`<div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-2xl rounded-tr-none px-3.5 py-2.5 text-xs max-w-[85%] shadow-md leading-relaxed">${escapeHtml(text)}</div>`;
+    m.innerHTML='<div class="bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-2xl rounded-tr-none px-3.5 py-2.5 text-xs max-w-[85%] shadow-md leading-relaxed">'+escapeHtml(text)+'</div>';
     c.appendChild(m); c.scrollTop=c.scrollHeight;
   }
   function addAssistantMessage(text){
     const c=document.getElementById('chatMessages'); const m=document.createElement('div'); m.className='flex items-start gap-2.5';
-    m.innerHTML=`<div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-lg"><i class="fa-solid fa-robot"></i></div>
-      <div class="bg-slate-800/70 border border-slate-700/60 text-slate-200 rounded-2xl rounded-tl-none p-3 text-xs leading-relaxed max-w-[85%] shadow-sm whitespace-pre-line">${formatMd(text)}</div>`;
+    m.innerHTML='<div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-lg"><i class="fa-solid fa-robot"></i></div>'+
+      '<div class="bg-slate-800/70 border border-slate-700/60 text-slate-200 rounded-2xl rounded-tl-none p-3 text-xs leading-relaxed max-w-[85%] shadow-sm whitespace-pre-line">'+formatMd(text)+'</div>';
     c.appendChild(m); c.scrollTop=c.scrollHeight;
   }
   function addStreamBubble(){
     const c=document.getElementById('chatMessages'); const m=document.createElement('div'); m.className='flex items-start gap-2.5';
-    m.innerHTML=`<div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-lg"><i class="fa-solid fa-robot"></i></div>
-      <div class="bg-slate-800/70 border border-slate-700/60 text-slate-200 rounded-2xl rounded-tl-none p-3 text-xs leading-relaxed max-w-[85%] shadow-sm whitespace-pre-line"></div>`;
+    m.innerHTML='<div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-lg"><i class="fa-solid fa-robot"></i></div>'+
+      '<div class="bg-slate-800/70 border border-slate-700/60 text-slate-200 rounded-2xl rounded-tl-none p-3 text-xs leading-relaxed max-w-[85%] shadow-sm whitespace-pre-line"></div>';
     c.appendChild(m); return m.lastElementChild;
   }
   function addLoadingMessage(){
     const c=document.getElementById('chatMessages'); const id='msg-'+Date.now(); const m=document.createElement('div'); m.id=id; m.className='flex items-start gap-2.5';
-    m.innerHTML=`<div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-lg"><i class="fa-solid fa-robot"></i></div>
-      <div class="bg-slate-800/70 border border-slate-700/60 text-slate-400 rounded-2xl rounded-tl-none px-4 py-3 text-xs flex items-center gap-2 shadow-sm">
-        <span class="flex gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-indigo-400 typing-dot"></span><span class="w-1.5 h-1.5 rounded-full bg-purple-400 typing-dot" style="animation-delay:.2s"></span><span class="w-1.5 h-1.5 rounded-full bg-pink-400 typing-dot" style="animation-delay:.4s"></span></span>
-        <span>Thinking…</span>
-      </div>`;
+    m.innerHTML='<div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shrink-0 text-white text-xs font-bold shadow-lg"><i class="fa-solid fa-robot"></i></div>'+
+      '<div class="bg-slate-800/70 border border-slate-700/60 text-slate-400 rounded-2xl rounded-tl-none px-4 py-3 text-xs flex items-center gap-2 shadow-sm">'+
+      '<span class="flex gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-indigo-400 typing-dot"></span><span class="w-1.5 h-1.5 rounded-full bg-purple-400 typing-dot" style="animation-delay:.2s"></span><span class="w-1.5 h-1.5 rounded-full bg-pink-400 typing-dot" style="animation-delay:.4s"></span></span>'+
+      '<span>Thinking…</span>'+
+      '</div>';
     c.appendChild(m); c.scrollTop=c.scrollHeight; return id;
   }
   function removeMessage(id){const el=document.getElementById(id);if(el)el.remove();}
@@ -1410,10 +1438,7 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
   const BROWSER_API='/api/browser';
   const AGENT_MAX_STEPS=30;
   const AGENT_CALL_TIMEOUT_MS=90000;
-  let agentRun=null;
-  let agentServerOnline=false;
-  let viewingBrowser=false;
-  let loginRequested=false;
+  let browserServerUrl=(localStorage.getItem('SH_BROWSER_SERVER')||'').trim();
 
   const BROWSER_TOOLS=[
     {name:'navigate',description:'Open a URL in the AI browser.',parameters:{type:'OBJECT',properties:{url:{type:'STRING',description:'Full https:// URL'}},required:['url']}},
@@ -1427,29 +1452,10 @@ LOGIN: LOGIN_REQUIRED or NO_LOGIN`;
     {name:'finish',description:'Task complete.',parameters:{type:'OBJECT',properties:{summary:{type:'STRING'},success:{type:'BOOLEAN'},edits_made:{type:'STRING'}},required:['summary','success']}},
   ];
 
-  const BROWSER_AGENT_INSTRUCTION = `You are ScreenEdit AI, a browser-automation editor that edits websites on the user's behalf.
-You operate a real, VISIBLE Chromium browser. Each turn you receive a screenshot and MUST call exactly one function.
+  const BROWSER_AGENT_INSTRUCTION = 'You are ScreenEdit AI, a browser-automation editor that edits websites on the user\'s behalf.\nYou operate a real, VISIBLE Chromium browser. Each turn you receive a screenshot and MUST call exactly one function.\n\nYOUR JOB: accomplish the user\'s requested edit step by step.\n\nRules:\n- Coordinates are 0-1000 (top-left origin). Click the CENTER of buttons and fields.\n- To edit content inside a CMS/editor (WordPress, Shopify, Notion, Squarespace, Webflow, GitHub, Google Docs, Canva, admin dashboards, etc.):\n  1. Find & click the Edit / Pencil / page title to enter edit mode.\n  2. Click the text field you want to change.\n  3. Use key_press "Control+a" to select existing text (if it\'s a normal field), or just type_text with clear:true.\n  4. Call type_text with the replacement.\n  5. Click Save / Update / Publish / Post.\n- Close cookie banners, GDPR popups, newsletter modals, etc., if they block the view.\n- If you encounter a login / sign-in / auth wall, call request_login immediately. Do NOT try to guess credentials. After the user signs in you will be told to continue.\n- Never enter passwords, payment details, or personal data unless the user EXPLICITLY provided them in the goal.\n- When the goal is achieved, call finish with a plain-language summary and edits_made.\n- Take a confirming screenshot (by waiting) after the final save so the user sees the result.\n- If you hit an impossible state, call finish with success=false.\n- Keep internal text notes very short. Always respond with a function call.';
 
-YOUR JOB: accomplish the user's requested edit step by step.
-
-Rules:
-- Coordinates are 0-1000 (top-left origin). Click the CENTER of buttons and fields.
-- To edit content inside a CMS/editor (WordPress, Shopify, Notion, Squarespace, Webflow, GitHub, Google Docs, Canva, admin dashboards, etc.):
-  1. Find & click the Edit / Pencil / page title to enter edit mode.
-  2. Click the text field you want to change.
-  3. Use key_press "Control+a" to select existing text (if it's a normal field), or just type_text with clear:true.
-  4. Call type_text with the replacement.
-  5. Click Save / Update / Publish / Post.
-- Close cookie banners, GDPR popups, newsletter modals, etc., if they block the view.
-- If you encounter a login / sign-in / auth wall, call request_login immediately. Do NOT try to guess credentials. After the user signs in you will be told to continue.
-- Never enter passwords, payment details, or personal data unless the user EXPLICITLY provided them in the goal.
-- When the goal is achieved, call finish with a plain-language summary and edits_made.
-- Take a confirming screenshot (by waiting) after the final save so the user sees the result.
-- If you hit an impossible state, call finish with success=false.
-- Keep internal text notes very short. Always respond with a function call.`;
-
-  let browserServerUrl=(localStorage.getItem('SH_BROWSER_SERVER')||'').trim();
-  function browserApiUrl(r){return (browserServerUrl.replace(/\/+$/,''))+BROWSER_API+r;}
+  let browserServerUrlLocal=(localStorage.getItem('SH_BROWSER_SERVER')||'').trim();
+  function browserApiUrl(r){return (browserServerUrlLocal.replace(/\/+$/,''))+BROWSER_API+r;}
   function noServerError(d){const e=new Error(d);e.noServer=true;return e;}
 
   async function browserApi(route,body,signal){
@@ -1460,14 +1466,14 @@ Rules:
     try{res=await fetch(browserApiUrl(route),init);}
     catch(e){
       if(e.name==='AbortError')throw e;
-      throw noServerError(browserServerUrl
-        ?`Could not reach the AI browser at ${browserServerUrl}. Is "npm start" running?`
+      throw noServerError(browserServerUrlLocal
+        ?'Could not reach the AI browser at '+browserServerUrlLocal+'. Is "npm start" running?'
         :'The AI browser server isn\'t running. Run "npm start" in the project folder and open http://localhost:3000.');
     }
     const isJson=(res.headers.get('content-type')||'').includes('application/json');
-    if(!isJson){throw noServerError(browserServerUrl?`${browserServerUrl} is not a ScreenEdit server.`:'This page is being served statically, so live editing is unavailable. Run "npm start".');}
+    if(!isJson){throw noServerError(browserServerUrlLocal?browserServerUrlLocal+' is not a ScreenEdit server.':'This page is being served statically, so live editing is unavailable. Run "npm start".');}
     const data=await res.json().catch(()=>({}));
-    if(!res.ok)throw new Error(data.error||`Server error (${res.status})`);
+    if(!res.ok)throw new Error(data.error||'Server error ('+res.status+')');
     return data;
   }
 
@@ -1490,7 +1496,7 @@ Rules:
     document.getElementById('screenVideo').classList.add('hidden');
     document.getElementById('emptyViewportPrompt').classList.add('hidden');
     document.getElementById('heroStartBtn').classList.add('hidden');
-    document.getElementById('captureSourceInfo').innerHTML=`<i class="fa-solid fa-robot text-cyan-400 text-[10px]"></i> AI browser · <span class="font-mono text-cyan-300">${escapeHtml(st.title||st.url||'')}</span>`;
+    document.getElementById('captureSourceInfo').innerHTML='<i class="fa-solid fa-robot text-cyan-400 text-[10px]"></i> AI browser · <span class="font-mono text-cyan-300">'+escapeHtml(st.title||st.url||'')+'</span>';
     clearBoundingBoxes(); setBrowserView(true); await img.decode().catch(()=>{});
   }
   function pointBox(x,y,r=22){const c=v=>Math.max(0,Math.min(1000,v));return{xmin:c(x-r),ymin:c(y-r),xmax:c(x+r),ymax:c(y+r)};}
@@ -1498,13 +1504,13 @@ Rules:
   function describeCall({name,args}){
     args=args||{};
     switch(name){
-      case'navigate':return`open ${args.url}`;
-      case'click_at':return`${args.double?'double-click':'click'} (${args.x},${args.y})`;
-      case'type_text':return`type "${String(args.text||'').slice(0,40)}${String(args.text||'').length>40?'…':''}"${args.submit?' + Enter':''}`;
-      case'key_press':return`press ${args.keys}`;
-      case'scroll':return`scroll ${args.direction}`;
+      case'navigate':return'open '+args.url;
+      case'click_at':return(args.double?'double-click':'click')+' ('+args.x+','+args.y+')';
+      case'type_text':return'type "'+String(args.text||'').slice(0,40)+(String(args.text||'').length>40?'…':'')+'"'+(args.submit?' + Enter':'');
+      case'key_press':return'press '+args.keys;
+      case'scroll':return'scroll '+args.direction;
       case'go_back':return'go back';
-      case'wait':return`wait ${args.seconds}s`;
+      case'wait':return'wait '+args.seconds+'s';
       case'request_login':return'request login';
       case'finish':return'finish';
       default:return name;
@@ -1514,13 +1520,13 @@ Rules:
     const c=document.getElementById('chatMessages'); const row=document.createElement('div'); row.className='pl-10';
     const colors={ok:'text-cyan-300 border-cyan-500/20 bg-cyan-500/5',err:'text-rose-300 border-rose-500/20 bg-rose-500/5',note:'text-slate-400 border-slate-700 bg-slate-800/40'};
     const icon={ok:'fa-check text-emerald-400',err:'fa-xmark text-rose-400',note:'fa-circle-info text-slate-400'}[kind]||'fa-check text-emerald-400';
-    row.innerHTML=`<div class="font-mono text-[11px] ${colors[kind]||colors.ok} border rounded-lg px-2.5 py-1.5 break-words flex items-center gap-2"><i class="fa-solid ${icon}"></i>${escapeHtml(text)}</div>`;
+    row.innerHTML='<div class="font-mono text-[11px] '+(colors[kind]||colors.ok)+' border rounded-lg px-2.5 py-1.5 break-words flex items-center gap-2"><i class="fa-solid '+icon+'"></i>'+escapeHtml(text)+'</div>';
     c.appendChild(row); c.scrollTop=c.scrollHeight;
   }
   function updateServerPill(){
     const dot=document.getElementById('serverDot'),txt=document.getElementById('serverStatusText');
-    if(agentServerOnline){dot.className='w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse';txt.textContent='AI browser connected';txt.classList.remove('text-slate-500');txt.classList.add('text-emerald-300');}
-    else{dot.className='w-1.5 h-1.5 rounded-full bg-amber-400';txt.textContent='AI browser offline — run npm start';txt.classList.remove('text-emerald-300');txt.classList.add('text-slate-500');}
+    if(agentServerOnline){dot.className='w-1.5 h-1.5 rounded-full status-dot status-online';txt.textContent='AI browser connected';txt.classList.remove('text-slate-500');txt.classList.add('text-emerald-300');}
+    else{dot.className='w-1.5 h-1.5 rounded-full status-dot status-offline';txt.textContent='AI browser offline — run npm start';txt.classList.remove('text-emerald-300');txt.classList.add('text-slate-500');}
   }
 
   async function checkBrowserServer(){
@@ -1534,7 +1540,7 @@ Rules:
 
   async function launchEditFlow(goal,url) {
     if(!agentServerOnline){
-      addAssistantMessage(`🧭 I can see the site, but my AI browser isn't running.\n\nTo let me edit live:\n1. Open a terminal in this project folder\n2. Run <code class="md-code">npm install</code> (once)\n3. Run <code class="md-code">npm run install-browser</code> (once, downloads Chromium)\n4. Run <code class="md-code">npm start</code>\n5. Open <code class="md-code">http://localhost:3000</code> (if you aren't already there)\n\nOnce that's running, send your edit request again.`);
+      addAssistantMessage('🧭 I can see the site, but my AI browser isn\'t running.\n\nTo let me edit live:\n1. Open a terminal in this project folder\n2. Run <code class="md-code">npm install</code> (once)\n3. Run <code class="md-code">npm run install-browser</code> (once, downloads Chromium)\n4. Run <code class="md-code">npm start</code>\n5. Open <code class="md-code">http://localhost:3000</code> (if you aren\'t already there)\n\nOnce that\'s running, send your edit request again.');
       return;
     }
     await startBrowserAgent(goal, url);
@@ -1544,7 +1550,7 @@ Rules:
     loginRequested=true;
     setStage(STAGES.LOGIN);
     document.getElementById('loginBanner').classList.remove('hidden');
-    document.getElementById('loginBannerText').textContent=message||"Sign in to the website in the Chromium window that just opened. Your credentials stay on your machine — I can't see them. Click \"I'm signed in\" when you're done, and I'll continue editing.";
+    document.getElementById('loginBannerText').textContent=message||"Sign in to the website in the Chromium window that just opened. Your credentials stay on your machine — I can\'t see them. Click \"I'm signed in\" when you're done, and I'll continue editing.";
     setAgentStatus('Waiting for you to sign in…');
     updateAgentButtons();
   }
@@ -1565,7 +1571,7 @@ Rules:
     if(x<0||x>1000||y<0||y>1000)return;
     setAgentStatus('Manual click…');
     try{const res=await browserApi('/action',{action:'click_at',x,y});if(!res.ok)throw new Error(res.error);await applyBrowserState(res.state);markAction({x,y},'You clicked');setAgentStatus('Browser open');}
-    catch(err){addAssistantMessage(`Manual click failed: ${err.message}`);}
+    catch(err){addAssistantMessage('Manual click failed: '+err.message);}
   }
 
   function stopBrowserAgent(){
@@ -1589,7 +1595,7 @@ Rules:
     agentRun=run; updateAgentButtons();
     setStage(STAGES.AGENT);
     document.getElementById('agentProgressBar').classList.remove('hidden');
-    addUserMessage(`✨ Edit: ${goal}`);
+    addUserMessage('✨ Edit: '+goal);
     const signal=run.abort.signal;
 
     try{
@@ -1598,22 +1604,24 @@ Rules:
       catch(e){
         if(!e.noServer)throw e;
         agentServerOnline=false; updateServerPill();
-        addAssistantMessage(`🧭 I can see the site, but I cant reach a local AI browser server.\n\nTo edit live from this GitHub Pages copy:\n1. Open a terminal in this project folder on your computer\n2. Run <code class="md-code">npm install</code> (once)\n3. Run <code class="md-code">npm run install-browser</code> (once, downloads Chromium)\n4. Run <code class="md-code">npm start</code>\n5. Open the settings (key icon) and enter <code class="md-code">http://localhost:3000</code> as the browser editor server\n6. Send your edit request again.`);
+        addAssistantMessage('🧭 I can see the site, but I can\'t reach a local AI browser server.\n\nTo edit live from this GitHub Pages copy:\n1. Open a terminal in this project folder on your computer\n2. Run <code class="md-code">npm install</code> (once)\n3. Run <code class="md-code">npm run install-browser</code> (once, downloads Chromium)\n4. Run <code class="md-code">npm start</code>\n5. Open the settings (key icon) and enter <code class="md-code">http://localhost:3000</code> as the browser editor server\n6. Send your edit request again.');
+        setStage(STAGES.ERROR);
+        return;
       }
       agentServerOnline=true; updateServerPill();
 
-      setAgentStatus(startUrl?`Opening ${startUrl.replace(/^https?:\/\//,'').slice(0,40)}…`:'Launching AI browser…');
+      setAgentStatus(startUrl?'Opening '+startUrl.replace(/^https?:\/\//,'').slice(0,40)+'…':'Launching AI browser…');
       if(!st.running||(startUrl&&st.url!==startUrl)){
         st=await browserApi('/open',startUrl?{url:startUrl}:{},signal);
       }
       await applyBrowserState(st);
 
-      const history=[{role:'user',parts:[{text:`Goal: ${goal}\nThe browser is at ${st.url} ("${st.title}"). Take the first action. If you see a login/sign-in wall, call request_login immediately.`},{inlineData:{mimeType:'image/jpeg',data:st.screenshot}}]}];
+      const history=[{role:'user',parts:[{text:'Goal: '+goal+'\nThe browser is at '+st.url+' ('+st.title+'). Take the first action. If you see a login/sign-in wall, call request_login immediately.',},{inlineData:{mimeType:'image/jpeg',data:st.screenshot}}]}];
 
       let outcome=null, spokenSummary='';
       while(!run.stopped){
-        if(run.steps>=AGENT_MAX_STEPS){outcome=`⚠️ Reached ${AGENT_MAX_STEPS} steps without finishing. Try a more specific request or take over manually (click in the viewport).`;break;}
-        setAgentStatus(`Thinking · step ${run.steps+1}…`);
+        if(run.steps>=AGENT_MAX_STEPS){outcome='⚠️ Reached '+AGENT_MAX_STEPS+' steps without finishing. Try a more specific request or take over manually (click in the viewport).';break;}
+        setAgentStatus('Thinking · step '+(run.steps+1)+'…');
         const{content,model}=await callAgentModel(history,signal);
         document.getElementById('modelBadge').textContent=model||'auto';
         history.push(content);
@@ -1631,14 +1639,14 @@ Rules:
           run.steps++; const label=describeCall(call);
           try{
             const res=await browserApi('/action',{action:call.name,...(call.args||{})},signal);
-            if(res.ok){addAgentLog(`${run.steps}. ${label}`,'ok');lastState=res.state;await applyBrowserState(res.state);if(['click_at','type_text'].includes(call.name))markAction(call.args,'AI');responses.push({functionResponse:{name:call.name,response:{result:res.result,url:res.state.url,title:res.state.title}}});}
-            else{addAgentLog(`${run.steps}. ${label}: ${res.error}`,'err');responses.push({functionResponse:{name:call.name,response:{error:res.error}}});}
-          }catch(err){if(err.name==='AbortError')throw err;addAgentLog(`${run.steps}. ${label}: ${err.message}`,'err');responses.push({functionResponse:{name:call.name,response:{error:err.message}}});}
+            if(res.ok){addAgentLog(run.steps+'. '+label,'ok');lastState=res.state;await applyBrowserState(res.state);if(['click_at','type_text'].includes(call.name))markAction(call.args,'AI');responses.push({functionResponse:{name:call.name,response:{result:res.result,url:res.state.url,title:res.state.title}}});}
+            else{addAgentLog(run.steps+'. '+label+': '+res.error,'err');responses.push({functionResponse:{name:call.name,response:{error:res.error}}});}
+          }catch(err){if(err.name==='AbortError')throw err;addAgentLog(run.steps+'. '+label+': '+err.message,'err');responses.push({functionResponse:{name:call.name,response:{error:err.message}}});}
         }
 
         if(loginCall){
           const msg=(loginCall.args&&loginCall.args.message)||'Sign-in required. Please sign in the AI browser window, then click "I\'m signed in".';
-          showLoginBanner(msg); addAssistantMessage(`🔐 ${msg}`);
+          showLoginBanner(msg); addAssistantMessage('🔐 '+msg);
           speakText('Sign in required. Please sign in in the browser window.');
           await new Promise(resolve=>{run.resolveLogin=resolve;});
           if(run.stopped)break;
@@ -1655,19 +1663,19 @@ Rules:
         if(finishCall){
           const args=finishCall.args||{};
           spokenSummary=args.summary||'Done.';
-          outcome=(args.success!==false?'✅ ':'⚠️ ')+spokenSummary+(args.edits_made?`\n\n<strong>Changes made:</strong> ${escapeHtml(args.edits_made)}`:'');
+          outcome=(args.success!==false?'✅ ':'⚠️ ')+spokenSummary+(args.edits_made?'\n\n<strong>Changes made:</strong> '+escapeHtml(args.edits_made):'');
           break;
         }
 
         const cur=lastState||await browserApi('/state',undefined,signal);
         await applyBrowserState(cur);
-        responses.push({text:`Now at: ${cur.url} ("${cur.title}"). Continue, or call finish.`});
+        responses.push({text:'Now at: '+cur.url+' ('+cur.title+'). Continue, or call finish.'});
         responses.push({inlineData:{mimeType:'image/jpeg',data:cur.screenshot}});
         history.push({role:'user',parts:responses}); pruneOldScreenshots(history);
       }
       if(outcome&&!run.stopped){addAssistantMessage(outcome);speakText(spokenSummary.replace(/<[^>]+>/g,' '));setStage(STAGES.DONE);}
     }catch(err){
-      if(err.name!=='AbortError'){addAssistantMessage(`AI browser error: ${err.message}`);setStage(STAGES.ERROR);}
+      if(err.name!=='AbortError'){addAssistantMessage('AI browser error: '+err.message);setStage(STAGES.ERROR);}
     }finally{
       if(agentRun===run)agentRun=null;
       updateAgentButtons(); setAgentStatus('Ready'); checkBrowserServer();
@@ -1678,9 +1686,9 @@ Rules:
     setAgentStatus('Searching the web…');
     const id=addLoadingMessage();
     try{
-      const{result,model}=await withModelFallback(m=>callGeminiSearch(m,goal,signal),{signal,onWait:s=>setAgentStatus(`Gemini busy · ${s}s…`)});
+      const{result,model}=await withModelFallback(m=>callGeminiSearch(m,goal,signal),{signal,onWait:s=>setAgentStatus('Gemini busy · '+s+'s…')});
       document.getElementById('modelBadge').textContent=model||'auto'; removeMessage(id);
-      addAssistantMessage(`🔎 ${result.text}`);
+      addAssistantMessage('🔎 '+result.text);
       if(result.sources.length){
         const c=document.getElementById('chatMessages'); const row=document.createElement('div'); row.className='pl-10 flex flex-wrap gap-1.5';
         for(const s of result.sources){if(!/^https?:/i.test(s.uri))continue;const a=document.createElement('a');a.href=s.uri;a.target='_blank';a.rel='noopener noreferrer';a.textContent=s.title;a.className='text-[10px] px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-cyan-300 hover:bg-slate-700';row.appendChild(a);}
@@ -1693,37 +1701,37 @@ Rules:
     const ctl=new AbortController();const relay=()=>ctl.abort();signal.addEventListener('abort',relay);const timer=setTimeout(()=>ctl.abort(),AGENT_CALL_TIMEOUT_MS);
     const payload={systemInstruction:{parts:[{text:'Answer concisely with facts, numbers, names. Note when data is dated.'}]},contents:[{role:'user',parts:[{text:goal}]}],tools:[{google_search:{}}],generationConfig:{temperature:0.2,maxOutputTokens:1024}};
     try{
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},body:JSON.stringify(payload)});
+      const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},body:JSON.stringify(payload)});
       if(!res.ok)throw await geminiHttpError(model,res);
       const data=await res.json(); const c=data.candidates&&data.candidates[0];
       const parts=(c&&c.content&&c.content.parts)||[];
       const text=parts.filter(p=>p.text&&!p.thought).map(p=>p.text).join('').trim();
-      if(!text){const e=new Error(`(${model}) Empty response.`);e.transient=true;throw e;}
+      if(!text){const e=new Error('('+model+') Empty response.');e.transient=true;throw e;}
       const chunks=(c.groundingMetadata&&c.groundingMetadata.groundingChunks)||[];
       const seen=new Set();const sources=[];
       for(const h of chunks){if(!h.web||!h.web.uri||seen.has(h.web.uri))continue;seen.add(h.web.uri);sources.push({uri:h.web.uri,title:h.web.title||h.web.uri});if(sources.length>=4)break;}
       return{text,sources};
     }
-    catch(e){if(e.name==='AbortError'&&!signal.aborted){const e2=new Error(`(${model}) timed out`);e2.transient=true;throw e2;}if(e.name==='TypeError')throw networkError();throw e;}
+    catch(e){if(e.name==='AbortError'&&!signal.aborted){const e2=new Error('('+model+') timed out');e2.transient=true;throw e2;}if(e.name==='TypeError')throw networkError();throw e;}
     finally{clearTimeout(timer);signal.removeEventListener('abort',relay);}
   }
   function pruneOldScreenshots(h){let kept=false;for(let i=h.length-1;i>=0;i--){const t=h[i];if(!t.parts||!t.parts.some(p=>p.inlineData))continue;if(!kept){kept=true;continue;}t.parts=t.parts.map(p=>p.inlineData?{text:'[earlier screenshot omitted]'}:p);}}
   async function callAgentModel(history,signal){
-    const{result,model}=await withModelFallback(m=>callGeminiAgent(m,history,signal),{signal,onWait:s=>setAgentStatus(`Gemini busy · ${s}s…`)});
+    const{result,model}=await withModelFallback(m=>callGeminiAgent(m,history,signal),{signal,onWait:s=>setAgentStatus('Gemini busy · '+s+'s…')});
     return{content:result,model};
   }
   async function callGeminiAgent(model,history,signal){
     const ctl=new AbortController();const relay=()=>ctl.abort();signal.addEventListener('abort',relay);const timer=setTimeout(()=>ctl.abort(),AGENT_CALL_TIMEOUT_MS);
     const payload={systemInstruction:{parts:[{text:BROWSER_AGENT_INSTRUCTION}]},contents:history,tools:[{functionDeclarations:BROWSER_TOOLS}],toolConfig:{functionCallingConfig:{mode:'ANY'}},generationConfig:{temperature:0.2,maxOutputTokens:2048}};
-    const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    const url='https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent';
     try{
       const res=await fetch(url,{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},body:JSON.stringify(payload)});
       if(!res.ok)throw await geminiHttpError(model,res);
       const data=await res.json(); const c=data.candidates&&data.candidates[0];
-      if(!c||!c.content||!c.content.parts||!c.content.parts.length){const e=new Error(`(${model}) Empty response.`);e.transient=true;throw e;}
+      if(!c||!c.content||!c.content.parts||!c.content.parts.length){const e=new Error('('+model+') Empty response.');e.transient=true;throw e;}
       return c.content;
     }
-    catch(e){if(e.name==='AbortError'&&!signal.aborted){const e2=new Error(`(${model}) timed out`);e2.transient=true;throw e2;}if(e.name==='TypeError')throw networkError();throw e;}
+    catch(e){if(e.name==='AbortError'&&!signal.aborted){const e2=new Error('('+model+') timed out');e2.transient=true;throw e2;}if(e.name==='TypeError')throw networkError();throw e;}
     finally{clearTimeout(timer);signal.removeEventListener('abort',relay);}
   }
 
@@ -1733,8 +1741,8 @@ Rules:
     // On GitHub Pages (non-localhost) without a configured server URL, prompt setup
     const origin = window.location.origin;
     const isLocalhost = /^(http:\/\/localhost|http:\/\/127\.0\.0\.1)/i.test(origin);
-    if(!isLocalhost && !browserServerUrl && !agentServerOnline){
-      addAssistantMessage(`🔧 Setup needed for live editing.\n\nThis page is hosted on GitHub Pages. To edit websites live:\n1. Run <code class="md-code">npm start</code> on your computer to start the local AI browser server\n2. Open the settings (key icon) and enter <code class="md-code">http://localhost:3000</code> as the browser editor server\n3. Send your edit request again\n\nYour Gemini API key works from here — only browser automation needs the local server.`);
+    if(!isLocalhost && !browserServerUrlLocal && !agentServerOnline){
+      addAssistantMessage('🔧 Live editing setup optional.\nThis page runs on GitHub Pages. Detection and chat work right now — just add your Gemini API key in Settings.\n\nTo edit websites live (click, type, navigate in a real browser):\n1. Run <code class="md-code">npm start</code> on your computer\n2. Open Settings and enter <code class="md-code">http://localhost:3000</code> as the browser editor server\n3. Then ask me to edit and I\'ll control the browser for you\n\nOnly live browser automation needs the local server.');
     }
   }
 
